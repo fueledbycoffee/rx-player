@@ -50,6 +50,10 @@ MetaPlaylist has several advantages. Some of them are:
     the client's page. This paves the way for contents personalized to a single
     customer.
 
+  - it manages "overlays" in its specification, which are images to display on
+    top of the current content at certain points in time (e.g.: the content
+    rating and/or the channel logo).
+
   - Digital right management is also much more flexible than with a DASH MPD.
     For example, different license servers for different contents could be
     integrated. This is still a work-in-progress.
