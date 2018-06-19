@@ -36,7 +36,7 @@ import config from "../../../config";
 import log from "../../../log";
 import AbstractSourceBuffer from "../../abstract_source_buffer";
 import parseTextTrackToElements from "./parsers";
-import TextTrackCuesStore from "./text_track_cues_store";
+import TimedDataStore from "./timed_data_store";
 import updateProportionalElements from "./update_proportional_elements";
 
 const { onEnded$,
@@ -128,7 +128,7 @@ export default class HTMLTextSourceBuffer
   private readonly _textTrackElement : HTMLElement;
 
   // Buffer containing the data
-  private readonly _buffer : TextTrackCuesStore;
+  private readonly _buffer : TimedDataStore<HTMLElement>;
 
   // We could need us to automatically update styling depending on
   // `_textTrackElement`'s size. This Subject allows to stop that
@@ -156,7 +156,7 @@ export default class HTMLTextSourceBuffer
     this._textTrackElement = textTrackElement;
     this._clearSizeUpdates$ = new Subject();
     this._destroy$ = new Subject();
-    this._buffer = new TextTrackCuesStore();
+    this._buffer = new TimedDataStore<HTMLElement>();
     this._currentCue = null;
 
     // update text tracks
@@ -176,7 +176,7 @@ export default class HTMLTextSourceBuffer
         if (cue === undefined) {
           this._hideCurrentCue();
         } else {
-          this._displayCue(cue.element);
+          this._displayCue(cue.data);
         }
       });
   }
@@ -263,7 +263,9 @@ export default class HTMLTextSourceBuffer
       return;
     }
 
-    this._buffer.insert(cues, start, end);
+    const formattedData = cues.map((cue) =>
+      ({ start: cue.start, end: cue.end, data: cue.element, }));
+    this._buffer.insert(formattedData, start, end);
     this.buffered.insert(start, end);
   }
 
