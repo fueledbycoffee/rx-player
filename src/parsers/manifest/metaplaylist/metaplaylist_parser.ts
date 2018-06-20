@@ -16,16 +16,15 @@
 
 import Manifest, {
   IAdaptationType,
-  StaticRepresentationIndex,
   SUPPORTED_ADAPTATIONS_TYPE,
 } from "../../../manifest";
-import idGenerator from "../../../utils/id_generator";
 import {
   IParsedAdaptation,
   IParsedAdaptations,
   IParsedManifest,
   IParsedPeriod,
 } from "../types";
+import OverlayRepresentationIndex from "./overlay_representation_index";
 import MetaRepresentationIndex from "./representation_index";
 
 export type IParserResponse<T> =
@@ -44,17 +43,32 @@ export interface IMetaPlaylistTextTrack {
   codecs? : string;
 }
 
+export interface IMetaPlaylistOverlay {
+  start : number;
+  end : number;
+  timescale : number;
+  version : number;
+  elements : Array<{
+    url : string;
+    format : string;
+    xAxis : string;
+    yAxis : string;
+    height : string;
+    width : string;
+  }>;
+}
+
 export interface IMetaPlaylist {
   type : "MPL"; // Obligatory token
   version : string; // MAJOR.MINOR
   dynamic? : boolean; // The MetaPlaylist could need to be updated
   pollInterval? : number; // Refresh interval in seconds
+  overlays? : IMetaPlaylistOverlay[];
   contents: Array<{ // Sub-Manifests
     url: string; // URL of the Manifest
     startTime: number; // start timestamp in seconds
     endTime: number; // end timestamp in seconds
     transport: string; // "dash" | "smooth" | "metaplaylist"
-    textTracks?: IMetaPlaylistTextTrack[];
   }>;
 }
 
@@ -153,8 +167,6 @@ function createManifest(
   const clockOffset = serverSyncInfos !== undefined ?
     serverSyncInfos.serverTimestamp - serverSyncInfos.clientTime :
     undefined;
-  const generateAdaptationID = idGenerator();
-  const generateRepresentationID = idGenerator();
   const { contents } = mplData;
   const minimumTime = contents.length > 0 ? contents[0].startTime :
                                             0;
@@ -235,38 +247,6 @@ function createManifest(
           return acc;
         }, {});
 
-      // TODO only first period?
-      const textTracks : IMetaPlaylistTextTrack[] =
-        content.textTracks === undefined ? [] :
-                                           content.textTracks;
-      const newTextAdaptations : IParsedAdaptation[] = textTracks.map((track) => {
-        const adaptationID = "gen-text-ada-" + generateAdaptationID();
-        const representationID = "gen-text-rep-" + generateRepresentationID();
-        return {
-          id: adaptationID,
-          type: "text",
-          language: track.language,
-          closedCaption: track.closedCaption,
-          manuallyAdded: true,
-          representations: [
-            { bitrate: 0,
-              id: representationID,
-              mimeType: track.mimeType,
-              codecs: track.codecs,
-              index: new StaticRepresentationIndex({ media: track.url }),
-            },
-          ],
-        };
-      }, []);
-
-      if (newTextAdaptations.length > 0) {
-        if (adaptations.text == null) {
-          adaptations.text = newTextAdaptations;
-        } else {
-          adaptations.text.push(...newTextAdaptations);
-        }
-      }
-
       const newPeriod : IParsedPeriod = {
         id: formatId(currentManifest.id) + "_" + formatId(currentPeriod.id),
         adaptations,
@@ -289,6 +269,26 @@ function createManifest(
       }
     }
     periods.push(...manifestPeriods);
+  }
+
+  const { overlays } = mplData;
+  if (overlays != null && overlays.length > 0) {
+    for (let i = 0; i < periods.length; i++) {
+      const period = periods[i];
+      const periodEnd =
+        period.end != null ? period.end :
+        period.duration != null ? period.start + period.duration :
+        undefined;
+      period.adaptations.overlay = [{
+        id: formatId(period.id) + "_" + "ada_ov",
+        type: "overlay",
+        representations: [{
+          id: formatId(period.id) + "_" + "rep_ov",
+          bitrate: 0,
+          index: new OverlayRepresentationIndex(overlays, period.start, periodEnd),
+        }],
+      }];
+    }
   }
 
   const time = performance.now();

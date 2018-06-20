@@ -51,7 +51,9 @@ import {
   IManifestParserObservable,
   IManifestParserResponseEvent,
   IManifestParserWarningEvent,
+  IOverlayParserObservable,
   ISegmentLoaderArguments,
+  ISegmentLoaderObservable,
   ISegmentParserArguments,
   ISegmentParserParsedSegment,
   ITextParserObservable,
@@ -422,12 +424,38 @@ export default function(options : ITransportOptions): ITransportPipelines {
   };
 
   const overlayTrackPipeline = {
-    loader() : never {
-      throw new Error("Overlay tracks not managed in HSS");
+    loader() : ISegmentLoaderObservable<Uint8Array|ArrayBuffer|null> {
+      // For now, nothing is downloaded.
+      // Everything is parsed from the segment
+      return observableOf({
+        type: "data-created" as const,
+        value: { responseData: null },
+      });
     },
 
-    parser() : never {
-      throw new Error("Overlay tracks not yet in HSS");
+    parser(
+      args : ISegmentParserArguments<ArrayBuffer|Uint8Array|null>
+    ) : IOverlayParserObservable {
+      const { segment, period } = args.content;
+      const { privateInfos } = segment;
+      if (privateInfos?.overlayInfos === undefined) {
+        throw new Error("An overlay segment should have private infos.");
+      }
+      const { overlayInfos } = privateInfos;
+      const end = segment.duration != null ?
+        segment.duration - segment.time : overlayInfos.end;
+      return observableOf({ type: "parsed-segment" as const,
+                            value: { chunkOffset: 0,
+                                     chunkInfos: { time: segment.time,
+                                                   duration: segment.duration,
+                                                   timescale: segment.timescale },
+                                     chunkData: { data: [overlayInfos],
+                                                  start: segment.time,
+                                                  end,
+                                                  type: "metaplaylist",
+                                                  timeOffset: 0,
+                                                  timescale: segment.timescale },
+                                     appendWindow: [period.start, period.end] } });
     },
   };
 
