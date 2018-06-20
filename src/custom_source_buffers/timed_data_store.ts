@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-import assert from "../../../utils/assert";
-import {
-  ITimedData,
-  ITimedDataSegment,
-} from "./types";
+import assert from "../utils/assert";
 import {
   areNearlyEqual,
   getElementsAfter,
   getElementsBefore,
+  ITimedData,
+  ITimedDataSegment,
   removeElementsBetween,
 } from "./utils";
 

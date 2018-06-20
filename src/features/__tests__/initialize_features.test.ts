@@ -105,6 +105,11 @@ describe("Features - initializeFeaturesObject", () => {
         sami: require("../../parsers/texttracks/sami/html").default,
         srt: require("../../parsers/texttracks/srt/html").default,
       },
+      overlayBuffer: require("../../custom_source_buffers/overlay/index")
+        .default,
+      overlayParsers: {
+        metaplaylist: require("../../parsers/overlay/metaplaylist").default,
+      },
     });
 
     delete (window as any).__FEATURES__;

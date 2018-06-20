@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import {
-  ITimedData,
-  ITimedDataSegment,
-} from "./types";
+export interface ITimedData<T> { start : number;
+                                 end : number;
+                                 data : T; }
+
+export interface ITimedDataSegment<T> { start : number;
+                                        end : number;
+                                        content : Array<ITimedData<T>>; }
 
 /**
  * Maximum time difference, in seconds, between two segment's start times

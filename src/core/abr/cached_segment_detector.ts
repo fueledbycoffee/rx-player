@@ -63,7 +63,7 @@ export default function generateCachedSegmentDetector():
                                                    segment: ISegment; },
                                       downloadDuration: number): boolean {
     const contentType = content.adaptation.type;
-    if (contentType === "text" || contentType === "image") {
+    if (contentType !== "audio" && contentType !== "video") {
       return false;
     }
 

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-export interface ITimedData<T> { start : number;
-                                 end : number;
-                                 data : T; }
+/**
+ * /!\ This file is feature-switchable.
+ * It always should be imported through the `features` object.
+ */
 
-export interface ITimedDataSegment<T> { start : number;
-                                        end : number;
-                                        content : Array<ITimedData<T>>; }
+import OverlayTrackSourceBuffer from "./overlay_source_buffer";
+export default OverlayTrackSourceBuffer;

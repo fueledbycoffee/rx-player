@@ -28,10 +28,8 @@ import {
 export default class ManualTimeRanges implements TimeRanges {
   public length : number;
 
-  private _ranges : Array<{
-    start : number;
-    end : number;
-  }>;
+  private _ranges : Array<{ start : number;
+                            end : number; }>;
 
   constructor() {
     this._ranges = [];

@@ -78,6 +78,21 @@ export interface ILocalManifestSegmentPrivateInfos {
   segment : ILocalIndexSegment;
 }
 
+/** privateInfos specific to overlay Segments. */
+export interface IOverlaySegmentPrivateInfos {
+  start : number;
+  end : number;
+  version : number;
+  element : {
+    url : string;
+    format : string;
+    xAxis : string;
+    yAxis : string;
+    height : string;
+    width : string;
+  };
+}
+
 /**
  * Supplementary information that can be added to any segment depending on the
  * tranport logic used.
@@ -85,16 +100,16 @@ export interface ILocalManifestSegmentPrivateInfos {
  * logic of the player. That information is only here to be retrieved and
  * exploited by the corresponding transport logic.
  */
-export interface IPrivateInfos {
+export interface ISegmentPrivateInfos {
   smoothInit? : ISmoothInitSegmentPrivateInfos;
   metaplaylistInfos? : IMetaPlaylistPrivateInfos;
   localManifestInitSegment? : ILocalManifestInitSegmentPrivateInfos;
   localManifestSegment? : ILocalManifestSegmentPrivateInfos;
+  overlayInfos? : IOverlaySegmentPrivateInfos;
 }
 
 /** Represent a single Segment from a Representation. */
 export interface ISegment {
-  /** Estimated duration of the segment, in timescale. */
   duration : number;
   /** ID of the Segment. Should be unique for this Representation. */
   id : string;
@@ -121,7 +136,7 @@ export interface ISegment {
    * Allows to store supplementary information on a segment that can be later
    * exploited by the transport logic.
    */
-  privateInfos? : IPrivateInfos;
+  privateInfos? : ISegmentPrivateInfos;
   /** Optional byte range to retrieve the Segment from its URL(s) */
   range? : [number, number];
   /**

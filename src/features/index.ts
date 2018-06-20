@@ -47,6 +47,8 @@ const features : IFeaturesObject = { directfile: null,
                                      imageParser: null,
                                      nativeTextTracksBuffer: null,
                                      nativeTextTracksParsers: {},
+                                     overlayParsers: {},
+                                     overlayBuffer: null,
                                      transports: {} };
 
 export default features;

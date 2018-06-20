@@ -32,7 +32,8 @@ import { IAdaptationType } from "./types";
 export const SUPPORTED_ADAPTATIONS_TYPE: IAdaptationType[] = [ "audio",
                                                                "video",
                                                                "text",
-                                                               "image" ];
+                                                               "image",
+                                                               "overlay" ];
 
 /**
  * Returns true if the given Adaptation's `type` is a valid `type` property.

@@ -54,6 +54,12 @@ export default function initializeFeaturesObject() : void {
   }
   if (__FEATURES__.METAPLAYLIST) {
     features.transports.metaplaylist = require(__RELATIVE_PATH__.METAPLAYLIST).default;
+
+    // XXX TODO
+    features.overlayParsers = {
+      metaplaylist: require("../parsers/overlay/metaplaylist.ts").default,
+    };
+    features.overlayBuffer = require("../custom_source_buffers/overlay/index.ts").default;
   }
   /* tslint:enable no-var-requires */
 

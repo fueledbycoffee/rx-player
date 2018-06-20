@@ -35,8 +35,8 @@ import {
 import config from "../../../config";
 import log from "../../../log";
 import AbstractSourceBuffer from "../../abstract_source_buffer";
+import TimedDataStore from "../../timed_data_store";
 import parseTextTrackToElements from "./parsers";
-import TimedDataStore from "./timed_data_store";
 import updateProportionalElements from "./update_proportional_elements";
 
 const { onEnded$,

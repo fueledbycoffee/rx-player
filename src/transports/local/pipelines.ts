@@ -90,9 +90,19 @@ export default function getLocalManifestPipelines(
     },
   };
 
+  const overlayTrackPipeline = {
+    loader:  () : never => {
+      throw new Error("Overlay track not supported in local transport.");
+    },
+    parser: () : never => {
+      throw new Error("Overlay track not supported in local transport.");
+    },
+  };
+
   return { manifest: manifestPipeline,
            audio: segmentPipeline,
            video: segmentPipeline,
            text: textTrackPipeline,
-           image: imageTrackPipeline };
+           image: imageTrackPipeline,
+           overlay: overlayTrackPipeline };
 }

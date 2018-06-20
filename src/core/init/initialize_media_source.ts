@@ -58,7 +58,10 @@ import {
   IManifestFetcherParserOptions,
   SegmentFetcherCreator,
 } from "../fetchers";
-import { ITextTrackSourceBufferOptions } from "../source_buffers";
+import {
+  IOverlaySourceBufferOptions,
+  ITextTrackSourceBufferOptions,
+} from "../source_buffers";
 import createEMEManager, {
   IEMEDisabledEvent,
 } from "./create_eme_manager";
@@ -131,8 +134,10 @@ export interface IInitializeArguments {
   speed$ : Observable<number>;
   /** The configured starting position. */
   startAt? : IInitialTimeOptions;
-  /** Configuration specific to the text track. */
-  textTrackOptions : ITextTrackSourceBufferOptions;
+  sourceBufferOptions?: {
+    text?: ITextTrackSourceBufferOptions; // TextTrack configuration
+    overlay?: IOverlaySourceBufferOptions; // Overlay configuration
+  };
   /**
    * "Transport pipelines": logic specific to the current transport
    * (e.g. DASH, Smooth...)
@@ -179,7 +184,7 @@ export default function InitializeOnMediaSource(
     networkConfig,
     speed$,
     startAt,
-    textTrackOptions,
+    sourceBufferOptions,
     transportPipelines,
     url } : IInitializeArguments
 ) : Observable<IInitEvent> {
@@ -266,7 +271,14 @@ export default function InitializeOnMediaSource(
 
       const mediaSourceLoader = createMediaSourceLoader({
         abrManager,
-        bufferOptions: objectAssign({ textTrackOptions }, bufferOptions),
+        bufferOptions: objectAssign({
+          textTrackOptions: sourceBufferOptions !== undefined ?
+            sourceBufferOptions.text :
+            undefined,
+          overlayOptions: sourceBufferOptions !== undefined ?
+            sourceBufferOptions.overlay :
+            undefined,
+        }, bufferOptions),
         clock$,
         manifest,
         mediaElement,
