@@ -11,8 +11,13 @@ import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import $handleCatchUpMode from "./catchUp";
 
-const PLAYER = ({ $destroy, state }, { videoElement, textTrackElement }) => {
-  const player = new window.RxPlayer({
+const RxPlayer = window.RxPlayer;
+
+const PLAYER = (
+  { $destroy, state },
+  { videoElement, textTrackElement, overlayElement },
+) => {
+  const player = new RxPlayer({
     limitVideoWidth: false,
     stopAtEnd: false,
     throttleVideoBitrateWhenHidden: true,
@@ -84,6 +89,7 @@ const PLAYER = ({ $destroy, state }, { videoElement, textTrackElement }) => {
     LOAD: (arg) => {
       player.loadVideo(Object.assign({
         textTrackElement,
+        overlayElement,
         networkConfig: {
           segmentRetry: Infinity,
           manifestRetry: Infinity,
