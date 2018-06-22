@@ -313,15 +313,15 @@ export default class SourceBuffersStore {
         const opts = options as ITextTrackSourceBufferOptions; // XXX TODO
         if (opts.textTrackMode === "html") {
           if (features.htmlTextTracksBuffer == null) {
-            const error = new Error("HTML Text track feature not activated");
-            throw new MediaError("BUFFER_TYPE_UNKNOWN", error, true);
+            throw new MediaError("BUFFER_TYPE_UNKNOWN",
+                                 "HTML Text track feature not activated");
           }
           sourceBuffer = new features
             .htmlTextTracksBuffer(this._mediaElement, opts.textTrackElement);
         } else {
           if (features.nativeTextTracksBuffer == null) {
-            const error = new Error("Native Text track feature not activated");
-            throw new MediaError("BUFFER_TYPE_UNKNOWN", error, true);
+            throw new MediaError("BUFFER_TYPE_UNKNOWN",
+                                 "Native Text track feature not activated");
           }
           sourceBuffer = new features
             .nativeTextTracksBuffer(this._mediaElement,
@@ -336,8 +336,8 @@ export default class SourceBuffersStore {
 
       case "image": {
         if (features.imageBuffer == null) {
-          const error = new Error("Image buffer feature not activated");
-          throw new MediaError("BUFFER_TYPE_UNKNOWN", error, true);
+          throw new MediaError("BUFFER_TYPE_UNKNOWN",
+                               "Image buffer feature not activated");
         }
         log.info("SB: Creating a new image SourceBuffer with codec", codec);
         const sourceBuffer = new features.imageBuffer();
@@ -349,16 +349,16 @@ export default class SourceBuffersStore {
 
       case "overlay": {
         if (features.overlayBuffer == null) {
-          const error = new Error("Image buffer feature not activated");
-          throw new MediaError("BUFFER_TYPE_UNKNOWN", error, true);
+          throw new MediaError("BUFFER_TYPE_UNKNOWN",
+                               "Image buffer feature not activated");
         }
         log.info("SB: Creating a new Overlay SourceBuffer with codec", codec);
         if (
           options == null ||
           (options as IOverlaySourceBufferOptions).overlayElement == null
         ) {
-          const error = new Error("Cannot create Overlay SourceBuffer: Invalid options.");
-          throw new MediaError("INVALID_SOURCE_BUFFER_ARGUMENTS", error, true);
+          throw new MediaError("INVALID_SOURCE_BUFFER_ARGUMENTS",
+                               "Cannot create Overlay SourceBuffer: Invalid options.");
         }
         const sourceBuffer = new features.overlayBuffer(
           this._mediaElement,

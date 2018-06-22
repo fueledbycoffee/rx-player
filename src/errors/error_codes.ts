@@ -36,6 +36,7 @@ export type IEncryptedMediaErrorCode = "INCOMPATIBLE_KEYSYSTEMS" |
 export type IMediaErrorCode = "BUFFER_APPEND_ERROR" |
                               "BUFFER_FULL_ERROR" |
                               "BUFFER_TYPE_UNKNOWN" |
+                              "INVALID_SOURCE_BUFFER_ARGUMENTS" |
                               "MANIFEST_INCOMPATIBLE_CODECS_ERROR" |
                               "MANIFEST_PARSE_ERROR" |
                               "MANIFEST_UPDATE_ERROR" |
@@ -135,6 +136,8 @@ const ErrorCodes : Record<IErrorCode, IErrorCode>  = {
 
   MEDIA_SOURCE_NOT_SUPPORTED: "MEDIA_SOURCE_NOT_SUPPORTED",
   MEDIA_KEYS_NOT_SUPPORTED: "MEDIA_KEYS_NOT_SUPPORTED",
+
+  INVALID_SOURCE_BUFFER_ARGUMENTS: "INVALID_SOURCE_BUFFER_ARGUMENTS",
 
   NONE: "NONE",
 };

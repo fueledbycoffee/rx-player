@@ -69,22 +69,20 @@ export default class OverlayRepresentationIndex implements IRepresentationIndex 
   getSegments(up : number, to : number) : ISegment[] {
     return this._overlays
       .filter(({ start, end }) => {
-        return start < to && end > up;
+        return start < (to + up) && end > up;
       })
       .map(overlayData => {
         const time = Math.max(overlayData.start, this._periodStart);
         const duration = this._periodEnd == null ?
           Number.MAX_VALUE :
           Math.min(overlayData.end, this._periodEnd) - time;
-        return {
-          isInit: false,
-          id: "ov_" + String(time) + String(duration),
-          time,
-          duration,
-          timescale: overlayData.timescale,
-          mediaURLs: null,
-          privateInfos: { overlayInfos: overlayData },
-        };
+        return { isInit: false,
+                 id: "ov_" + String(time) + String(duration),
+                 time,
+                 duration,
+                 timescale: overlayData.timescale,
+                 mediaURLs: null,
+                 privateInfos: { overlayInfos: overlayData } };
       });
   }
 
@@ -120,6 +118,22 @@ export default class OverlayRepresentationIndex implements IRepresentationIndex 
     return -1;
   }
 
+  canBeOutOfSyncError() : boolean {
+    return false;
+  }
+
+  isFinished() : boolean {
+    return this._periodEnd !== null;
+  }
+
+  _replace() : void {
+    log.warn("Tried to update an Overlay RepresentationIndex");
+  }
+
+  isSegmentStillAvailable() : boolean {
+    return true;
+  }
+
   _addSegments() : void {
     if (__DEV__) {
       log.warn("Tried add Segments to an Overlay RepresentationIndex");
@@ -128,24 +142,5 @@ export default class OverlayRepresentationIndex implements IRepresentationIndex 
 
   _update() : void {
     log.warn("Tried to update an Overlay RepresentationIndex");
-  }
-
-  _replace() : void {
-    log.warn("Tried to update an Overlay RepresentationIndex");
-  }
-
-  isFinished() : true {
-    // XXX TODO
-    return true;
-  }
-
-  canBeOutOfSyncError() : false {
-    // XXX TODO
-    return false;
-  }
-
-  isSegmentStillAvailable() : true {
-    // XXX TODO
-    return true;
   }
 }
