@@ -183,8 +183,14 @@ export default class QueuedSourceBuffer<T> {
   // Helps to clean-up Observables created at its creation.
   private _destroy$ : Subject<void>;
 
+  // Lock status.
+  // When the QueuedSourceBuffer is locked, no queued order is performed until
+  // it is unlocked.
+  private _isLocked : boolean;
+
   // Queue of awaited buffer orders.
   // The first element in this array will be the first performed.
+  // @private
   private _queue : Array<IQSBQueueItem<T>>;
 
   // Information about the current action processed by the QueuedSourceBuffer.
@@ -222,6 +228,7 @@ export default class QueuedSourceBuffer<T> {
     this.bufferType = bufferType;
     this._sourceBuffer = sourceBuffer;
     this._queue = [];
+    this._isLocked = false;
     this._pendingTask = null;
     this._lastInitSegment = null;
     this._currentCodec = codec;
@@ -246,6 +253,32 @@ export default class QueuedSourceBuffer<T> {
       tap(() => this._flush()),
       takeUntil(this._destroy$)
     ).subscribe();
+  }
+
+  /**
+   * Lock the QueuedSourceBuffer.
+   * No queued action will be performed until the QueuedSourceBuffer is
+   * unlocked.
+   */
+  lock() : void {
+    this._isLocked = true;
+  }
+  /**
+   * Returns true if the QueuedSourceBuffer is currently in the locked state.
+   * @see lock
+   * @see unlock
+   * @returns {Boolean}
+   */
+  isLocked() : boolean {
+    return this._isLocked;
+  }
+  /**
+   * Unlock the QueuedSourceBuffer.
+   * Every actions in Queue will be done sequentially.
+   */
+  unlock() : void {
+    this._isLocked = false;
+    this._flush();
   }
 
   /**
@@ -398,7 +431,7 @@ export default class QueuedSourceBuffer<T> {
   /**
    * When the returned observable is subscribed:
    *   1. Add your action to the queue.
-   *   2. Begin the queue if not pending.
+   *   2. Begin the queue if not pending and not locked.
    *
    * Cancel queued action on unsubscription.
    * @private
@@ -433,7 +466,7 @@ export default class QueuedSourceBuffer<T> {
    * @private
    */
   private _flush() : void {
-    if (this._sourceBuffer.updating) {
+    if (this.isLocked() || this._sourceBuffer.updating) {
       return; // still processing `this._pendingTask`
     }
 
