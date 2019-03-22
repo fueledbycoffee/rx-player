@@ -55,5 +55,7 @@ declare const __RELATIVE_PATH__ : {
   NATIVE_TEXT_BUFFER: string;
   NATIVE_TTML: string;
   NATIVE_VTT: string;
+  OVERLAY_BUFFER: string;
+  OVERLAY_METAPLAYLIST: string;
   SMOOTH: string;
 };

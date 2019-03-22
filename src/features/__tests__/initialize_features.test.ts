@@ -50,6 +50,8 @@ describe("Features - initializeFeaturesObject", () => {
       NATIVE_TTML: "../parsers/texttracks/ttml/native/index.ts",
       NATIVE_SAMI: "../parsers/texttracks/sami/native.ts",
       HTML_TEXT_BUFFER: "../custom_source_buffers/text/html/index.ts",
+      OVERLAY_BUFFER: "../custom_source_buffers/overlay/index.ts",
+      OVERLAY_METAPLAYLIST: "../parsers/overlay/metaplaylist/index.ts",
       HTML_VTT: "../parsers/texttracks/webvtt/html/index.ts",
       HTML_SRT: "../parsers/texttracks/srt/html.ts",
       HTML_TTML: "../parsers/texttracks/ttml/html/index.ts",

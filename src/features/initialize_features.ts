@@ -55,11 +55,12 @@ export default function initializeFeaturesObject() : void {
   if (__FEATURES__.METAPLAYLIST) {
     features.transports.metaplaylist = require(__RELATIVE_PATH__.METAPLAYLIST).default;
 
-    // XXX TODO
-    features.overlayParsers = {
-      metaplaylist: require("../parsers/overlay/metaplaylist/index.ts").default,
-    };
-    features.overlayBuffer = require("../custom_source_buffers/overlay/index.ts").default;
+    if (features.overlayParsers == null) {
+      features.overlayParsers = {};
+    }
+    features.overlayParsers.metaplaylist =
+      require(__RELATIVE_PATH__.OVERLAY_METAPLAYLIST).default;
+    features.overlayBuffer = require(__RELATIVE_PATH__.OVERLAY_BUFFER).default;
   }
   /* tslint:enable no-var-requires */
 

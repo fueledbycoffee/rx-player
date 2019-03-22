@@ -65,6 +65,8 @@ const config = {
         NATIVE_TEXT_BUFFER: JSON.stringify("../custom_source_buffers/text/native/index.ts"),
         NATIVE_TTML: JSON.stringify("../parsers/texttracks/ttml/native/index.ts"),
         NATIVE_VTT: JSON.stringify("../parsers/texttracks/webvtt/native/index.ts"),
+        OVERLAY_BUFFER: JSON.stringify("../custom_source_buffers/overlay/index.ts"),
+        OVERLAY_METAPLAYLIST: JSON.stringify("../parsers/overlay/metaplaylist/index.ts"),
         SMOOTH: JSON.stringify("../transports/smooth/index.ts"),
       },
       __DEV__: true,
