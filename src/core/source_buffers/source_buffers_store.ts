@@ -53,9 +53,10 @@ export interface IOverlaySourceBufferOptions {
 }
 
 // General Options available for any SourceBuffer
-export type ISourceBufferOptions = ITextTrackSourceBufferOptions |
-                                   IOverlaySourceBufferOptions |
-                                   undefined;
+export interface ISourceBufferOptions {
+  overlayOptions? : IOverlaySourceBufferOptions;
+  textTrackOptions? : ITextTrackSourceBufferOptions;
+}
 
 // Types of "native" SourceBuffers
 type INativeSourceBufferType = "audio" | "video";
@@ -310,7 +311,7 @@ export default class SourceBuffersStore {
       case "text": {
         log.info("SB: Creating a new text SourceBuffer with codec", codec);
         let sourceBuffer : ICustomSourceBuffer<unknown>;
-        const opts = options as ITextTrackSourceBufferOptions; // XXX TODO
+        const opts = options.textTrackOptions || {};
         if (opts.textTrackMode === "html") {
           if (features.htmlTextTracksBuffer == null) {
             throw new MediaError("BUFFER_TYPE_UNKNOWN",
@@ -353,17 +354,12 @@ export default class SourceBuffersStore {
                                "Image buffer feature not activated");
         }
         log.info("SB: Creating a new Overlay SourceBuffer with codec", codec);
-        if (
-          options == null ||
-          (options as IOverlaySourceBufferOptions).overlayElement == null
-        ) {
+        if (options.overlayOptions == null) {
           throw new MediaError("INVALID_SOURCE_BUFFER_ARGUMENTS",
                                "Cannot create Overlay SourceBuffer: Invalid options.");
         }
         const sourceBuffer = new features.overlayBuffer(
-          this._mediaElement,
-          (options as IOverlaySourceBufferOptions).overlayElement // XXX TODO
-        );
+          this._mediaElement, options.overlayOptions.overlayElement);
         const queuedSourceBuffer =
           new QueuedSourceBuffer("overlay", codec, sourceBuffer);
         this._initializedSourceBuffers.overlay = queuedSourceBuffer;
