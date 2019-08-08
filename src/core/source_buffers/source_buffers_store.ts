@@ -311,7 +311,8 @@ export default class SourceBuffersStore {
       case "text": {
         log.info("SB: Creating a new text SourceBuffer with codec", codec);
         let sourceBuffer : ICustomSourceBuffer<unknown>;
-        const opts = options.textTrackOptions || {};
+        const opts = options.textTrackOptions === undefined ? {} :
+                                                              options.textTrackOptions;
         if (opts.textTrackMode === "html") {
           if (features.htmlTextTracksBuffer == null) {
             throw new MediaError("BUFFER_TYPE_UNKNOWN",

@@ -57,18 +57,11 @@ function generateClock(videoElement : HTMLMediaElement) : Observable<boolean> {
     .pipe(startWith(null));
 
   // TODO Better way to express that
-  return manualRefresh$.pipe(
-    startWith(null),
-    switchMapTo(
-      observableConcat(
-        autoRefresh$.pipe(
-          mapTo(true),
-          takeUntil(seeking$)
-        ),
-        observableOf(false)
-      )
-    )
-  );
+  return manualRefresh$.pipe(startWith(null),
+                             switchMapTo(observableConcat(autoRefresh$.pipe(
+                                                            mapTo(true),
+                                                            takeUntil(seeking$)),
+                                                          observableOf(false))));
 }
 
 /**
@@ -159,10 +152,8 @@ export default class OverlayTrackSourceBuffer
             type,
             timeOffset } = data;
     if (timescaledEnd !== undefined && timescaledEnd - timescaledStart <= 0) {
-      // this is accepted for error resilience, just skip that case.
-      /* tslint:disable:max-line-length */
-      log.warn("Invalid overlay data appended: the start time is inferior or equal to the end time.");
-      /* tslint:enable:max-line-length */
+      log.warn("Invalid overlay data appended: " +
+               "the start time is inferior or equal to the end time.");
       return;
     }
 
@@ -175,11 +166,9 @@ export default class OverlayTrackSourceBuffer
     const end = endTime != null ? endTime : overlays[overlays.length - 1].end;
 
     // TODO define "element" as "data" from the beginning?
-    const formattedData = overlays.map((cue) => ({
-      start: cue.start,
-      end: cue.end,
-      data: cue.element,
-    }));
+    const formattedData = overlays.map((cue) => ({ start: cue.start,
+                                                   end: cue.end,
+                                                   data: cue.element }));
     this._buffer.insert(formattedData, start, end);
     this.buffered.insert(start, end);
   }
