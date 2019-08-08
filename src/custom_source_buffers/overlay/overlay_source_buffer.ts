@@ -157,14 +157,71 @@ export default class OverlayTrackSourceBuffer
       return;
     }
 
-    const startTime = timescaledStart / timescale;
+    const startTime = timescaledStart !== undefined ? timescaledStart / timescale :
+                                                      undefined;
     const endTime = timescaledEnd !== undefined ? timescaledEnd / timescale :
                                                   undefined;
 
     const overlays = parseOverlayToElements(type, overlayData, timeOffset);
-    const start = startTime;
-    const end = endTime != null ? endTime : overlays[overlays.length - 1].end;
 
+    if (this.appendWindowStart !== 0 && this.appendWindowEnd !== Infinity) {
+      // Removing before window start
+      let i = 0;
+      while (i < overlays.length && overlays[i].end <= this.appendWindowStart) {
+        i++;
+      }
+      overlays.splice(0, i);
+
+      i = 0;
+      while (i < overlays.length && overlays[i].start < this.appendWindowStart) {
+        overlays[i].start = this.appendWindowStart;
+        i++;
+      }
+
+      // Removing after window end
+      i = overlays.length - 1;
+
+      while (i >= 0 && overlays[i].start >= this.appendWindowEnd) {
+        i--;
+      }
+      overlays.splice(i, overlays.length);
+
+      i = overlays.length - 1;
+      while (i >= 0 && overlays[i].end > this.appendWindowEnd) {
+        overlays[i].end = this.appendWindowEnd;
+        i--;
+      }
+    }
+
+    let start : number;
+    if (startTime != null) {
+      start = Math.max(this.appendWindowStart, startTime);
+    } else {
+      if (overlays.length <= 0) {
+        log.warn("HTSB: Current text tracks have no overlay nor start time. Aborting");
+        return;
+      }
+      log.warn("HTSB: No start time given. Guessing from overlays.");
+      start = overlays[0].start;
+    }
+
+    let end : number;
+    if (endTime != null) {
+      end = Math.min(this.appendWindowEnd, endTime);
+    } else {
+      if (overlays.length <= 0) {
+        log.warn("HTSB: Current text tracks have no overlay nor end time. Aborting");
+        return;
+      }
+      log.warn("HTSB: No end time given. Guessing from overlays.");
+      end = overlays[overlays.length - 1].end;
+    }
+
+    if (end <= start) {
+      log.warn("HTSB: Invalid text track appended: ",
+               "the start time is inferior or equal to the end time.");
+      return;
+    }
     // TODO define "element" as "data" from the beginning?
     const formattedData = overlays.map((cue) => ({ start: cue.start,
                                                    end: cue.end,
