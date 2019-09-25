@@ -170,11 +170,11 @@ function buildKeySystemConfigurations(
   //   3. set an undefined robustness
   const videoRobustnesses = keySystem.videoRobustnesses != null ?
     keySystem.videoRobustnesses :
-    (ksName === "widevine" ? EME_DEFAULT_WIDEVINE_ROBUSTNESSES :
+    (ksName === "widevine" ? EME_DEFAULT_WIDEVINE_ROBUSTNESSES.slice() :
                              []);
   const audioRobustnesses = keySystem.audioRobustnesses != null ?
     keySystem.audioRobustnesses :
-    (ksName === "widevine" ? EME_DEFAULT_WIDEVINE_ROBUSTNESSES :
+    (ksName === "widevine" ? EME_DEFAULT_WIDEVINE_ROBUSTNESSES.slice() :
                              []);
 
   if (videoRobustnesses.length === 0) {

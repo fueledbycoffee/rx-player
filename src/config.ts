@@ -151,7 +151,7 @@ export default {
   DEFAULT_INITIAL_BITRATES: {
     audio: 0, // only "audio" segments
     video: 0, // only "video" segments
-    other: 0, // tracks which are not audio/video (text images).
+    other: 0, // tracks which are not audio/video (text, images).
               // Though those are generally at a single bitrate, so no adaptive
               // mechanism is triggered for them.
   },
@@ -190,6 +190,7 @@ export default {
    * If true, if the player is in a "hidden" state for a delay specified by the
    * INACTIVITY DELAY config property, we throttle automatically to the video
    * representation with the lowest bitrate.
+   * This config property is for a deprecated value.
    * @type {Boolean}
    */
   DEFAULT_THROTTLE_WHEN_HIDDEN: false,
@@ -218,13 +219,13 @@ export default {
    * @type {Number}
    */
   DEFAULT_LIVE_GAP: {
-    DEFAULT: 10,
-    LOW_LATENCY: 3,
+    DEFAULT: 10, // For regular contents
+    LOW_LATENCY: 3, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
    * Maximum time, in seconds, the player should automatically skip when stalled
-   * because of a discontinuity in the downloaded range.
+   * because of a discontinuity in the buffered range.
    * @type {Number}
    */
   BUFFER_DISCONTINUITY_THRESHOLD: 1,
@@ -286,8 +287,8 @@ export default {
    *
    * Note that some errors do not use this counter:
    *   - if the error is not due to the xhr, no retry will be peformed
-   *   - if the error is an HTTP error code, but not a 500-smthg or a 404, no
-   *     retry will be performed.
+   *   - if the error is an HTTP error code, but not a 500-smthg, a 415 or a
+   *     404, no retry will be performed.
    *   - if it has a high chance of being due to the user being offline, a
    *     separate counter is used (see DEFAULT_MAX_REQUESTS_RETRY_ON_OFFLINE).
    * @type Number
@@ -318,8 +319,8 @@ export default {
    * @type {Number}
    */
   INITIAL_BACKOFF_DELAY_BASE: {
-    REGULAR: 200,
-    LOW_LATENCY: 50,
+    REGULAR: 200, // For regular contents
+    LOW_LATENCY: 50, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
@@ -330,8 +331,8 @@ export default {
    * @type {Number}
    */
   MAX_BACKOFF_DELAY_BASE: {
-    REGULAR: 3000,
-    LOW_LATENCY: 1000,
+    REGULAR: 3000, // For regular contents
+    LOW_LATENCY: 1000, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
@@ -472,8 +473,8 @@ export default {
    * @type {Number}
    */
   RESUME_GAP_AFTER_SEEKING: {
-    DEFAULT: 1.5,
-    LOW_LATENCY: 0.5,
+    DEFAULT: 1.5, // For regular contents
+    LOW_LATENCY: 0.5, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
@@ -482,8 +483,8 @@ export default {
    * @type {Number}
    */
   RESUME_GAP_AFTER_NOT_ENOUGH_DATA: {
-    DEFAULT: 0.5,
-    LOW_LATENCY: 0.5,
+    DEFAULT: 0.5, // For regular contents
+    LOW_LATENCY: 0.5, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
@@ -492,8 +493,8 @@ export default {
    * @type {Number}
    */
   RESUME_GAP_AFTER_BUFFERING: {
-    DEFAULT: 5,
-    LOW_LATENCY: 0.5,
+    DEFAULT: 5, // For regular contents
+    LOW_LATENCY: 0.5, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
@@ -505,14 +506,40 @@ export default {
    * @type {Number}
    */
   STALL_GAP: {
-    DEFAULT: 0.5,
-    LOW_LATENCY: 0.2,
+    DEFAULT: 0.5, // For regular contents
+    LOW_LATENCY: 0.2, // Specifically for contents launched in a "lowLatency mode".
   },
 
   /**
-   * Maximum authorized difference between what we calculated to be the
-   * beginning or end of the segment in the SourceBuffer and what we
-   * actually are noticing now.
+   * Maximum difference allowed between a segment _announced_ start (what the
+   * rx-player infers to be the starting time) and its _real_  current starting
+   * time in the SourceBuffer, in seconds, until the segment is considered
+   * "incomplete".
+   * Same for the ending time announced and its effective end time in the source
+   * buffer.
+   *
+   * If the difference is bigger than this value, the segment will be considered
+   * incomplete (e.g. considered as partially garbage-collected) and as such
+   * might be re-downloaded.
+   *
+   * Keeping a too high value might lead to incomplete segments being wrongly
+   * considered as complete (and thus not be re-downloaded, this could lead the
+   * player to stall).
+   * Note that in a worst-case scenario this can happen for the end of a segment
+   * and the start of the contiguous segment, leading to a discontinuity two
+   * times this value.
+   *
+   * Keeping a too low value might lead to re-downloading the same segment
+   * multiple times (when the start and end times are badly estimated) as they
+   * will wrongly believed to be partially garbage-collected.
+   *
+   * If a segment has a perfect continuity with a previous/following one in the
+   * SourceBuffer the start/end of it will not be checked. This allows to limit
+   * the number of time this error-prone logic is applied.
+   *
+   * Note that in most cases, the rx-player's start and end times estimations
+   * are __really__ close to what they really are in the sourcebuffer, as time
+   * information is most of the time directly parsed from the media container.
    *
    * If the segment seems to have removed more than this size in seconds, we
    * will infer that the segment has been garbage collected and we might try to
@@ -523,8 +550,8 @@ export default {
 
   /**
    * The maximum authorized difference, in seconds, between the real buffered
-   * time of a given chunk and what the segment information of the Manifest
-   * tells us.
+   * start or end time of a given chunk and what the segment information of
+   * the Manifest tells us.
    *
    * Setting a value too high can lead to parts of the SourceBuffer being
    * linked to the wrong segments and to segments wrongly believed to be still
@@ -928,4 +955,4 @@ export default {
 
   /** Interval we will use to poll for checking if an event shall be emitted */
   STREAM_EVENT_EMITTER_POLL_INTERVAL: 250,
-};
+} as const;
