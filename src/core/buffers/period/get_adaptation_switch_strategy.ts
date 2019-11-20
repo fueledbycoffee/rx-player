@@ -69,7 +69,7 @@ export default function getAdaptationSwitchStrategy(
                                                              period,
                                                              adaptation);
   const { currentTime } = clockTick;
-  if (adaptation.type === "video" &&
+  if ((adaptation.type === "video" || adaptation.type === "audio") &&
       clockTick.readyState > 1 &&
       isTimeInRange({ start, end }, currentTime) &&
       (isTimeInRanges(bufferedRanges, currentTime) &&
