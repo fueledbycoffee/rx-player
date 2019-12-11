@@ -39,7 +39,7 @@ const IS_HTTPS = window.location.protocol.startsWith("https");
 const CUSTOM_DRM_NAME = "Other";
 
 const TRANSPORT_TYPES = ["DASH", "Smooth", "DirectFile", "MetaPlaylist"];
-const DRM_TYPES = ["Widevine", "Playready", "Clearkey", CUSTOM_DRM_NAME];
+const DRM_TYPES = ["Widevine", "Playready", "Clearkey", "SL3000", CUSTOM_DRM_NAME];
 
 const DISABLE_ENCRYPTED_CONTENT = !HAS_EME_APIs && !IS_HTTPS;
 

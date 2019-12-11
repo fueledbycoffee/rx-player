@@ -28,6 +28,11 @@ export default function parseDRMConfigurations(drmConfigurations) {
       },
     };
 
+    if (drm === "SL3000") {
+      keySystem.type = "com.microsoft.playready.recommendation";
+      keySystem.videoRobustnesses = ["3000"];
+    }
+
     if (!serverCertificateUrl) {
       return keySystem;
     }
