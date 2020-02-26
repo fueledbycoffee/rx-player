@@ -71,7 +71,7 @@ const karmaConf = {
     path.resolve(__dirname, "./index.js"),
   ],
   client: {
-    captureConsole: false,
+    captureConsole: true,
     mocha: { reporter: "html" },
   },
 };
@@ -106,7 +106,7 @@ Options:
   --bchromehl   Launch tests on headless Chrome
   --bfirefoxhl  Launch tests on headless Firefox
   --coverage    Add coverage report
-  --watch       Re-run tests on modifications`
+  --watch       Re-run tests on modifications`,
   /* eslint-enable indent */
   );
   /* eslint-enable no-console */

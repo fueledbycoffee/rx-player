@@ -18,18 +18,16 @@ import CustomMediaKeySystemAccess, {
   ICustomMediaKeySystemAccess,
 } from "./custom_key_system_access";
 import {
-  createSession,
   ICustomMediaKeys,
   ICustomMediaKeySession,
   requestMediaKeySystemAccess,
+  setMediaKeys,
 } from "./custom_media_keys";
 import generateKeyRequest from "./generate_key_request";
 import getInitData from "./get_init_data";
-import setMediaKeys from "./set_media_keys";
 
 export {
   CustomMediaKeySystemAccess,
-  createSession,
   generateKeyRequest,
   getInitData,
   ICustomMediaKeySession,

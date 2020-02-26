@@ -1,5 +1,104 @@
 # Changelog
 
+## v3.21.0 (2020/06/17)
+
+### Features
+
+  - api/events: add `"streamEvent"` event for when a DASH EventStream's event is reached
+  - api/events: add `"streamEventSkip"` event for when a DASH EventStream's event is "skipped"
+  - types/events: add `IStreamEvent` and `IStreamEventData` - which define the payload emitted by both a `"streamEvent"` and `"streamEventSkip"` events to the exported types
+  - api/tracks: add second argument to `setPreferredAudioTracks`, `setPreferredTextTracks` and `setPreferredVideoTracks` to be able to also apply them to the currently loaded Periods / content
+  - text/webvtt: parse settings attributes of WebVTT subtitles when in HTML mode
+  - api/tracks: add codec information to `getAvailableAudioTracks` and `getAudioTrack`
+
+### Bug fixes
+
+  - dash: do not reduce the minimum position when using the `manifestUpdateUrl` `transportOptions` in `loadVideo`
+  - local-manifest: consider `language` property from a "local" Manifest
+  - local-manifest: refresh the Manifest even if we dont have a Manifest URL, as is often the case when playing locally-stored contents
+  - local-manifest: allow the "expired" property of a local-manifest to be updated
+  - compat/eme/fairplay: for fairplay contents, better format the initialization data given to the CDM. The previous behavior could lead to invalid license requests
+  - eme: re-allow serialization into a JSON string of the persisted session data, as presented in the DRM tutorial
+  - compat/low-latency: fix compilation of async/await when playing low-latency contents with the default bundled builds
+  - eme: ensure that the previous MediaKeySystemAccess used had `persistentState` to "required" when a new content needs it to be
+  - eme: fix `closeSessionsOnStop` `keySystems` option actually not removing any MediaKeySession when stopping a content (v3.20.1 regression).
+
+### Other improvements
+
+  - dash: emit minor errors arising when parsing the DASH MPD through warning events (whose payload will be an error with the `PIPELINE_PARSE_ERROR` code)
+  - dash: consider AdaptationSet@selectionPriority in our initial track choice if the user preferences lead to multiple compatible tracks
+  - misc: do not download video segments when playing on an "audio" element.
+  - eme: replace the MediaKeySession's cache entry based on the least recently used instead of on the least recently created to improve cache effectiveness.
+  - eme/persistent sessions: Limit the maximum of stored persistent MediaKeySessions to 1000 to avoid the storage to grow indefinitely (higher than that, the least-recently used will be evicted)
+
+
+## v3.20.1 (2020/05/06)
+
+### Bug fixes
+
+  - eme: fix `OTHER_ERROR` issue arising when loading a new encrypted media when a previous since-disposed instance of the RxPlayer played encrypted contents on the same media element
+  - eme: fix `OTHER_ERROR` issue arising on Internet Explorer 11 when playing more than one encrypted content
+  - eme: fix issue where more than 50 active MediaKeySessions at the same time could lead to infinite rebuffering when playing back a previous content with multiple encryption keys
+  - directfile: for directfile contents, don't reset to the preferred audio, text or video track when the track list changes
+  - eme: remove any possibility of collision in the storage of EME initialization data. The previous behavior could theorically lead some initialization data to be ignored.
+  - eme: fix typo which conflated an EME "internal-error" key status and an "output-restricted" one.
+
+
+## v3.20.0 (2020/04/22)
+
+### Features
+
+  - api: add `disableVideoTrack` method
+  - api: add the `preferredVideoTrack` constructor option and `setPreferredVideoTracks` / `getPreferredVideoTracks` methods to set a video track preference (or to start with the video track disabled).
+  - api: add optional `codec` property to preferred audio tracks APIs, allowing applications to communicate a codec preference.
+  - api: make the `language` and `audioDescription` properties in `preferredAudioTracks`' objects optional.
+  - api: add `signInterpreted` to `getVideoTrack` and `getAvailableVideoTracks` return objects to know when a track contains sign language interpretation
+
+### Deprecated
+
+  - api: deprecate the `getManifest()` method
+  - api: deprecate the `getCurrentAdaptations()` method
+  - api: deprecate the `getCurrentRepresentations()` method
+
+### Bug fixes
+
+  - compat/eme: Set proper EME Safari implementation, to play contents with DRM on it without issues
+  - compat/directfile/iOS: On Safari iOS, fix auto-play warnings when a directfile content is played with the `playsinline` attribute set.
+  - directfile: In Directfile mode, always disable the current text track when a `null` is encountered in the preferredTextTracks array
+
+### Other improvements
+
+  - abr: ignore requests that may have directly hit the cache in our adaptive logic
+  - dash/perf: improve parsing efficiency for very large MPDs, at the expense of a very small risk of de-synchronization. Mechanisms still allow for regular re-synchronization.
+
+
+## v3.19.0 (2020/03/11)
+
+### Features
+
+  - dash: handle multiple URL per segment anounced through multiple BaseURL elements in the MPD
+  - dash/smooth/metaplaylist: add `manifestUpdateUrl` to loadVideo's `transportOptions` to provide a shorter version of the Manifest, used for more resource-efficient Manifest updates
+  - tools/createMetaplaylist: add the experimental `createMetaplaylist` tool, which allows to generate Metaplaylist contents from given Manifests
+  - tools/TextTrackRenderer: add the optional `language` property to the `setTextTrack` method of the experimental `TextTrackRenderer` tool as it could be needed when parsing SAMI subtitles
+  - types: export IAvailableAudioTrack, IAvailableTextTrack and IAvailableVideoTrack types
+  - types: export IAudioTrack, ITextTrack and IVideoTrack types
+
+### Bug fixes
+
+  - dash/smooth: fix segment url resolution when there is query parameters in the Manifest URL and/or segment path, themselves containing "/" characters
+  - local-manifest: fix videoElement's duration and `getVideoDuration` for contents in the experimental `local` transport
+  - tools/parseBifThumbnails: do not return an un-displayable ArrayBuffer of the whole thing in each `image` property in the experimental `parseBifThumbnails` function
+
+### Other improvements
+
+  - compat: avoid pushing a segment on top of the current position in Safari, as it can sometime lead to green macro-blocks
+  - dash: add multiple performance improvements related to MPD parsing on embedded devices
+  - dash/smooth/metaplaylist/local: refresh less often the Manifest when parsing it takes too much time to improve performance
+  - smooth: filter unsupported video and audio QualityLevels when parsing a Smooth Manifest
+  - build: greatly reduce the time needed to produce a modular build through the `npm run build:modular` script
+  - build: remove Object.assign dependency
+
+
 ## v3.18.0 (2020/01/30)
 
 ### Features

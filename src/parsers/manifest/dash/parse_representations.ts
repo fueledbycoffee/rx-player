@@ -15,16 +15,22 @@
  */
 
 import log from "../../../log";
+import {
+  Adaptation,
+  Representation,
+} from "../../../manifest";
 import IRepresentationIndex from "../../../manifest/representation_index";
 import {
   IContentProtections,
   IParsedRepresentation,
 } from "../types";
 import extractMinimumAvailabilityTimeOffset from "./extract_minimum_availability_time_offset";
-import BaseRepresentationIndex from "./indexes/base";
-import ListRepresentationIndex from "./indexes/list";
-import TemplateRepresentationIndex from "./indexes/template";
-import TimelineRepresentationIndex from "./indexes/timeline";
+import {
+  BaseRepresentationIndex,
+  ListRepresentationIndex,
+  TemplateRepresentationIndex,
+  TimelineRepresentationIndex
+} from "./indexes";
 import ManifestBoundsCalculator from "./manifest_bounds_calculator";
 import {
   IAdaptationSetIntermediateRepresentation
@@ -34,43 +40,68 @@ import {
 } from "./node_parsers/Representation";
 import resolveBaseURLs from "./resolve_base_urls";
 
-// Supplementary context about the current AdaptationSet
+/** Supplementary context needed to parse a Representation. */
 export interface IAdaptationInfos {
-  aggressiveMode : boolean; // Whether we should request new segments even if
-                            // they are not yet finished
-  availabilityTimeOffset: number; // availability time offset of the concerned adaptation
-  baseURLs : string[]; // Eventual URLs from which every relative URL will be based
-                       // on
-  manifestBoundsCalculator : ManifestBoundsCalculator; // Allows to obtain the first
-                                                       // available position of a
-                                                       // dynamic content
-  end? : number; // End time of the current period, in seconds
-  isDynamic : boolean; // Whether the Manifest can evolve with time
-  receivedTime? : number; // time (in terms of `performance.now`) at which the
-                          // XML file containing this Representation was received
-  start : number; // Start time of the current period, in seconds
-  timeShiftBufferDepth? : number; // Depth of the buffer for the whole content,
-                                  // in seconds
+  /** Whether we should request new segments even if they are not yet finished. */
+  aggressiveMode : boolean;
+  /** availability time offset of the concerned Adaptation. */
+  availabilityTimeOffset: number;
+  /** Eventual URLs from which every relative URL will be based on. */
+  baseURLs : string[];
+  /** Allows to obtain the first available position of a dynamic content. */
+  manifestBoundsCalculator : ManifestBoundsCalculator;
+  /** End time of the current period, in seconds. */
+  end? : number;
+  /** Whether the Manifest can evolve with time. */
+  isDynamic : boolean;
+  /**
+   * Time (in terms of `performance.now`) at which the XML file containing this
+   * Representation was received.
+   */
+  receivedTime? : number;
+  /** Start time of the current period, in seconds. */
+  start : number;
+  /** Depth of the buffer for the whole content, in seconds. */
+  timeShiftBufferDepth? : number;
+  /**
+   * The parser should take this Adaptation - which is from a previously parsed
+   * Manifest for the same dynamic content - as a base to speed-up the parsing
+   * process.
+   * /!\ If unexpected differences exist between both, there is a risk of
+   * de-synchronization with what is actually on the server,
+   * Use with moderation.
+   */
+  unsafelyBaseOnPreviousAdaptation : Adaptation | null;
 }
 
-// base context given to the various indexes
+/** Base context given to the various indexes. */
 interface IIndexContext {
-  aggressiveMode : boolean; // Whether we should request new segments even if
-                            // they are not yet finished
+  /** Whether we should request new segments even if they are not yet finished. */
+  aggressiveMode : boolean;
   availabilityTimeOffset: number;
-  manifestBoundsCalculator : ManifestBoundsCalculator; // Allows to obtain the first
-                                                       // available position of a
-                                                       // dynamic content
-  isDynamic : boolean; // Whether the Manifest can evolve with time
-  periodStart : number; // Start of the period concerned by this
-                        // RepresentationIndex, in seconds
-  periodEnd : number|undefined; // End of the period concerned by this
-                                // RepresentationIndex, in seconds
-  representationBaseURLs : string[]; // Base URLs for the Representation concerned
-  representationId? : string; // ID of the Representation concerned
-  representationBitrate? : number; // Bitrate of the Representation concerned
-  timeShiftBufferDepth? : number; // Depth of the buffer for the whole content,
-                                  // in seconds
+  /** Allows to obtain the first available position of a dynamic content. */
+  manifestBoundsCalculator : ManifestBoundsCalculator;
+  /** Whether the Manifest can evolve with time. */
+  isDynamic : boolean;
+  /** Start of the period concerned by this RepresentationIndex, in seconds. */
+  periodStart : number;
+  /** End of the period concerned by this RepresentationIndex, in seconds. */
+  periodEnd : number|undefined;
+  /** Base URLs for the Representation concerned. */
+  representationBaseURLs : string[];
+  /** ID of the Representation concerned. */
+  representationId? : string;
+  /** Bitrate of the Representation concerned. */
+  representationBitrate? : number;
+  /** Depth of the buffer for the whole content, in seconds. */
+  timeShiftBufferDepth? : number;
+  /**
+   * The parser should take this Representation - which is the same as this one
+   * parsed at an earlier time - as a base to speed-up the parsing process.
+   * /!\ If unexpected differences exist between both, there is a risk of
+   * de-synchronization with what is actually on the server.
+   */
+  unsafelyBaseOnPreviousRepresentation: Representation | null;
 }
 
 /**
@@ -119,13 +150,46 @@ export default function parseRepresentations(
   adaptation : IAdaptationSetIntermediateRepresentation,
   adaptationInfos : IAdaptationInfos
 ): IParsedRepresentation[] {
-  return representationsIR.map((representation) => {
+  const parsedRepresentations : IParsedRepresentation[] = [];
+  for (let representationIdx = 0;
+       representationIdx < representationsIR.length;
+       representationIdx++)
+  {
+    const representation = representationsIR[representationIdx];
     const representationBaseURLs = resolveBaseURLs(adaptationInfos.baseURLs,
                                                    representation.children.baseURLs);
 
-    // 4-2-1. Find Index
+  // 1. Get ID
+  let representationID = representation.attributes.id != null ?
+    representation.attributes.id :
+    (String(representation.attributes.bitrate) +
+       (representation.attributes.height != null ?
+          (`-${representation.attributes.height}`) :
+          "") +
+       (representation.attributes.width != null ?
+          (`-${representation.attributes.width}`) :
+          "") +
+       (representation.attributes.mimeType != null ?
+          (`-${representation.attributes.mimeType}`) :
+          "") +
+       (representation.attributes.codecs != null ?
+          (`-${representation.attributes.codecs}`) :
+          ""));
+
+    // Avoid duplicate IDs
+    while (parsedRepresentations.some(r => r.id === representationID)) {
+      representationID += "-dup";
+    }
+
+    // 2. Retrieve previous version of the Representation, if one.
+    const unsafelyBaseOnPreviousRepresentation = adaptationInfos
+      .unsafelyBaseOnPreviousAdaptation?.getRepresentation(representationID) ??
+      null;
+
+    // 3. Find Index
     const context = { aggressiveMode: adaptationInfos.aggressiveMode,
                       availabilityTimeOffset: adaptationInfos.availabilityTimeOffset,
+                      unsafelyBaseOnPreviousRepresentation,
                       manifestBoundsCalculator: adaptationInfos.manifestBoundsCalculator,
                       isDynamic: adaptationInfos.isDynamic,
                       periodEnd: adaptationInfos.end,
@@ -161,7 +225,7 @@ export default function parseRepresentations(
       representationIndex = findAdaptationIndex(adaptation, context);
     }
 
-    // 4-2-2. Find bitrate
+    // 3. Find bitrate
     let representationBitrate : number;
     if (representation.attributes.bitrate == null) {
       log.warn("DASH: No usable bitrate found in the Representation.");
@@ -170,28 +234,13 @@ export default function parseRepresentations(
       representationBitrate = representation.attributes.bitrate;
     }
 
-    // 4-2-3. Set ID
-    const representationID = representation.attributes.id != null ?
-      representation.attributes.id :
-      (String(representation.attributes.bitrate) +
-         (representation.attributes.height != null ?
-            (`-${representation.attributes.height}`) :
-            "") +
-         (representation.attributes.width != null ?
-            (`-${representation.attributes.width}`) :
-            "") +
-         (representation.attributes.mimeType != null ?
-            (`-${representation.attributes.mimeType}`) :
-            "") +
-         (representation.attributes.codecs != null ?
-            (`-${representation.attributes.codecs}`) :
-            ""));
-    // 4-2-4. Construct Representation Base
+    // 4. Construct Representation Base
     const parsedRepresentation : IParsedRepresentation =
       { bitrate: representationBitrate,
         index: representationIndex,
         id: representationID };
-    // 4-2-5. Add optional attributes
+
+    // 5. Add optional attributes
     let codecs : string|undefined;
     if (representation.attributes.codecs != null) {
       codecs = representation.attributes.codecs;
@@ -264,6 +313,7 @@ export default function parseRepresentations(
       }
     }
 
-    return parsedRepresentation;
-  });
+    parsedRepresentations.push(parsedRepresentation);
+  }
+  return parsedRepresentations;
 }

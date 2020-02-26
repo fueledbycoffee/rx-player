@@ -22,31 +22,42 @@ import log from "../log";
 import { IParsedAdaptation } from "../parsers/manifest";
 import arrayFind from "../utils/array_find";
 import arrayIncludes from "../utils/array_includes";
+import isNullOrUndefined from "../utils/is_null_or_undefined";
 import normalizeLanguage from "../utils/languages";
 import uniq from "../utils/uniq";
-import filterSupportedRepresentations from "./filter_supported_representations";
 import Representation from "./representation";
+import { IAdaptationType } from "./types";
 
-export type IAdaptationType = "video" | "audio" | "text" | "image";
-
+/** List in an array every possible value for the Adaptation's `type` property. */
 export const SUPPORTED_ADAPTATIONS_TYPE: IAdaptationType[] = [ "audio",
                                                                "video",
                                                                "text",
                                                                "image" ];
 
+/**
+ * Returns true if the given Adaptation's `type` is a valid `type` property.
+ * @param {string} adaptationType
+ * @returns {boolean}
+ */
 function isSupportedAdaptationType(
   adaptationType : string
 ) : adaptationType is IAdaptationType {
   return arrayIncludes(SUPPORTED_ADAPTATIONS_TYPE, adaptationType);
 }
 
+/**
+ * Information describing a single Representation from an Adaptation, to be used
+ * in the `representationFilter` API.
+ */
 export interface IRepresentationInfos { bufferType: IAdaptationType;
                                         language?: string;
                                         isAudioDescription? : boolean;
                                         isClosedCaption? : boolean;
                                         isDub? : boolean;
+                                        isSignInterpreted?: boolean;
                                         normalizedLanguage? : string; }
 
+/** Type for the `representationFilter` API. */
 export type IRepresentationFilter = (representation: Representation,
                                      adaptationInfos: IRepresentationInfos)
                                     => boolean;
@@ -60,39 +71,59 @@ export type IRepresentationFilter = (representation: Representation,
  * @class Adaptation
  */
 export default class Adaptation {
-
-  // ID uniquely identifying the Adaptation in the Period.
+  /** ID uniquely identifying the Adaptation in the Period. */
   public readonly id : string;
 
-  // Different `Representations` (e.g. qualities) this Adaptation is available
-  // in.
+  /**
+   * Different `Representations` (e.g. qualities) this Adaptation is available
+   * in.
+   */
   public readonly representations : Representation[];
 
-  // Type of this Adaptation.
+  /** Type of this Adaptation. */
   public readonly type : IAdaptationType;
 
-  // Whether this track contains an audio description for the visually impaired.
+  /** Whether this track contains an audio description for the visually impaired. */
   public isAudioDescription? : boolean;
 
-  // Whether this Adaptation contains closed captions for the hard-of-hearing.
+  /** Whether this Adaptation contains closed captions for the hard-of-hearing. */
   public isClosedCaption? : boolean;
 
-  // If `true`, this Adaptation is a "dub", meaning it was recorded in another
-  // language than the original
+  /** If true this Adaptation contains sign interpretation. */
+  public isSignInterpreted? : boolean;
+
+  /**
+   * If `true`, this Adaptation is a "dub", meaning it was recorded in another
+   * language than the original one.
+   */
   public isDub? : boolean;
 
-  // Language this Adaptation is in, as announced in the original Manifest.
+  /** Language this Adaptation is in, as announced in the original Manifest. */
   public language? : string;
 
-  // Language this Adaptation is in, when translated into an ISO639-3 code.
+  /** Language this Adaptation is in, when translated into an ISO639-3 code. */
   public normalizedLanguage? : string;
 
-  // `true` if this Adaptation was not present in the original Manifest, but was
-  // manually added after through the corresponding APIs.
+  /**
+   * `true` if this Adaptation was not present in the original Manifest, but was
+   * manually added after through the corresponding APIs.
+   */
   public manuallyAdded? : boolean;
 
-  // Array containing every errors that happened when the Adaptation has been
-  // created, in the order they have happened.
+  /**
+   * `false` if from all Representation from this Adaptation, none is decipherable.
+   * `true` if at least one is known to be decipherable.
+   * `undefined` if this is not known for at least a single Representation.
+   */
+  public decipherable? : boolean;
+
+  /** `true` if at least one Representation is in a supported codec. `false` otherwise. */
+  public isSupported : boolean;
+
+  /**
+   * Array containing every errors that happened when the Adaptation has been
+   * created, in the order they have happened.
+   */
   public readonly parsingErrors : ICustomError[];
 
   /**
@@ -116,18 +147,6 @@ export default class Adaptation {
     }
     this.type = parsedAdaptation.type;
 
-    const hadRepresentations = parsedAdaptation.representations.length !== 0;
-    const argsRepresentations =
-      filterSupportedRepresentations(parsedAdaptation.type,
-                                     parsedAdaptation.representations);
-
-    if (hadRepresentations && argsRepresentations.length === 0) {
-      log.warn("Incompatible codecs for adaptation", parsedAdaptation);
-      const error = new MediaError("MANIFEST_INCOMPATIBLE_CODECS_ERROR",
-                                   "An Adaptation contains only incompatible codecs.");
-      this.parsingErrors.push(error);
-    }
-
     if (parsedAdaptation.language !== undefined) {
       this.language = parsedAdaptation.language;
       this.normalizedLanguage = normalizeLanguage(parsedAdaptation.language);
@@ -142,25 +161,51 @@ export default class Adaptation {
     if (parsedAdaptation.isDub !== undefined) {
       this.isDub = parsedAdaptation.isDub;
     }
+    if (parsedAdaptation.isSignInterpreted !== undefined) {
+      this.isSignInterpreted = parsedAdaptation.isSignInterpreted;
+    }
 
-    this.representations = argsRepresentations
-      .map(representation => new Representation(representation))
-      .sort((a, b) => a.bitrate - b.bitrate)
-      .filter(representation => {
-        if (representationFilter == null) {
-          return true;
+    const argsRepresentations = parsedAdaptation.representations;
+    const representations : Representation[] = [];
+    let decipherable : boolean | undefined = false;
+    let isSupported : boolean = false;
+    for (let i = 0; i < argsRepresentations.length; i++) {
+      const representation = new Representation(argsRepresentations[i],
+                                                { type: this.type });
+      const shouldAdd =
+        isNullOrUndefined(representationFilter) ||
+        representationFilter(representation,
+                             { bufferType: this.type,
+                               language: this.language,
+                               normalizedLanguage: this.normalizedLanguage,
+                               isClosedCaption: this.isClosedCaption,
+                               isDub: this.isDub,
+                               isAudioDescription: this.isAudioDescription,
+                               isSignInterpreted: this.isSignInterpreted });
+      if (shouldAdd) {
+        representations.push(representation);
+        if (decipherable === false && representation.decipherable !== false) {
+          decipherable = representation.decipherable;
         }
-        return representationFilter(representation,
-                                    { bufferType: this.type,
-                                      language: this.language,
-                                      normalizedLanguage: this.normalizedLanguage,
-                                      isClosedCaption: this.isClosedCaption,
-                                      isDub: this.isDub,
-                                      isAudioDescription: this.isAudioDescription });
-      });
+        if (!isSupported && representation.isSupported) {
+          isSupported = true;
+        }
+      }
+    }
+    this.representations = representations.sort((a, b) => a.bitrate - b.bitrate);
+
+    this.decipherable = decipherable;
+    this.isSupported = isSupported;
 
     // for manuallyAdded adaptations (not in the manifest)
     this.manuallyAdded = isManuallyAdded === true;
+
+    if (this.representations.length > 0 && !isSupported) {
+      log.warn("Incompatible codecs for adaptation", parsedAdaptation);
+      const error = new MediaError("MANIFEST_INCOMPATIBLE_CODECS_ERROR",
+                                   "An Adaptation contains only incompatible codecs.");
+      this.parsingErrors.push(error);
+    }
   }
 
   /**
@@ -176,6 +221,17 @@ export default class Adaptation {
       }
     }
     return uniq(bitrates);
+  }
+
+  /**
+   * Returns all Representation in this Adaptation that can be played (that is:
+   * not undecipherable and with a supported codec).
+   * @returns {Array.<Representation>}
+   */
+  getPlayableRepresentations() : Representation[] {
+    return this.representations.filter(rep => {
+      return rep.isSupported && rep.decipherable !== false;
+    });
   }
 
   /**

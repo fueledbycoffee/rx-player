@@ -33,6 +33,18 @@ export {
   INetworkConfigOption,
   IStartAtOption,
 
+  ITMAudioTrackListItem as IAvailableAudioTrack,
+  ITMTextTrackListItem as IAvailableTextTrack,
+  ITMVideoTrackListItem as IAvailableVideoTrack,
+
+  ITMAudioTrack as IAudioTrack,
+  ITMTextTrack as ITextTrack,
+  ITMVideoTrack as IVideoTrack,
+
   IAudioTrackPreference,
   ITextTrackPreference,
+  IVideoTrackPreference,
+
+  IStreamEvent,
+  IStreamEventData,
 } from "./core/api";

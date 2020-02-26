@@ -147,16 +147,34 @@ export type ISegmentLoaderObservable<T> = Observable<ILoaderChunkedDataEvent |
 
 // -- arguments
 
+/** Arguments given to the `parser` function of the Manifest pipeline. */
 export interface IManifestParserArguments {
-  response : ILoaderDataLoadedValue<unknown>; // Response from the loader
-  url? : string; // URL originally requested
-  externalClockOffset? : number; // If set, offset to add to `performance.now()`
-                                 // to obtain the current server's time
-
-  // allow the parser to load supplementary ressources (of type U)
+  /** Response obtained from the loader. */
+  response : ILoaderDataLoadedValue<unknown>;
+  /** URL originally requested. */
+  url? : string;
+  /**
+   * If set, offset to add to `performance.now()` to obtain the current
+   * server's time.
+   */
+  externalClockOffset? : number;
+  /** The previous value of the Manifest (when updating). */
+  previousManifest : Manifest | null;
+  /**
+   * Allow the parser to ask for loading supplementary ressources while still
+   * profiting from the same retries and error management than the loader.
+   */
   scheduleRequest : (request : () =>
     Observable< ILoaderDataLoadedValue< Document | string > >) =>
     Observable< ILoaderDataLoadedValue< Document | string > >;
+  /**
+   * If set to `true`, the Manifest parser can perform advanced optimizations
+   * to speed-up the parsing process. Those optimizations might lead to a
+   * de-synchronization with what is actually on the server, hence the "unsafe"
+   * part.
+   * To use with moderation and only when needed.
+   */
+  unsafeMode : boolean;
 }
 
 export interface ISegmentParserArguments<T> {
@@ -178,13 +196,29 @@ export interface ISegmentParserArguments<T> {
 
 // -- response
 
-// Response object returned by the Manifest's parser
-export interface IManifestParserResponse {
-  manifest : Manifest; // the manifest itself
-  url? : string; // final URL of the manifest
+/** Event emitted when a Manifest object has been parsed. */
+export interface IManifestParserResponseEvent {
+  type : "parsed";
+  value: {
+    /** The parsed Manifest Object itself. */
+    manifest : Manifest;
+    /** Final - real - URL (post-redirection) of the Manifest. */
+    url? : string;
+  };
 }
 
-export type IManifestParserObservable = Observable<IManifestParserResponse>;
+/** Event emitted when a minor error was encountered when parsing the Manifest. */
+export interface IManifestParserWarningEvent {
+  type : "warning";
+  value : Error;
+}
+
+/** Events emitted by the Manifest parser. */
+export type IManifestParserEvent = IManifestParserResponseEvent |
+                                   IManifestParserWarningEvent;
+
+/** Observable returned by the Manifest parser. */
+export type IManifestParserObservable = Observable<IManifestParserEvent>;
 
 // Format of a parsed initialization segment
 export interface ISegmentParserParsedInitSegment<T> {
@@ -389,8 +423,10 @@ export interface ITransportOptions {
   representationFilter? : IRepresentationFilter;
   segmentLoader? : CustomSegmentLoader;
   serverSyncInfos? : IServerSyncInfos;
+  /* tslint:disable deprecation */
   supplementaryImageTracks? : ISupplementaryImageTrack[];
   supplementaryTextTracks? : ISupplementaryTextTrack[];
+  /* tslint:enable deprecation */
 }
 
 export type ITransportFunction = (options : ITransportOptions) =>

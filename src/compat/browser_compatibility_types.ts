@@ -15,64 +15,154 @@
  */
 
 import { MediaError } from "../errors";
+import isNullOrUndefined from "../utils/is_null_or_undefined";
 import isNode from "./is_node";
-import shouldUseWebKitMediaKeys from "./should_use_webkit_media_keys";
 
-// regular MediaKeys type + optional functions present in IE11
+/** Regular MediaKeys type + optional functions present in IE11. */
 interface ICompatMediaKeysConstructor {
   isTypeSupported? : (type : string) => boolean; // IE11 only
   new(keyType? : string) : MediaKeys; // argument for IE11 only
 }
 
-// Regular VTTCue as present in most browsers
-// TODO open TypeScript issue about it?
+/**
+ * Browser implementation of a VTTCue constructor.
+ * TODO open TypeScript issue about it?
+ */
 type ICompatVTTCueConstructor = new(start : number,
                                     end : number,
                                     cueText : string) => ICompatVTTCue;
 
+/** Browser implementation for a single VTTCue. */
 interface ICompatVTTCue { align : string;
                           endTime : number;
                           id : string;
-                          line : number|"auto";
+                          line : number | "auto";
                           lineAlign : string;
-                          position : number|"auto";
+                          position : number | "auto";
                           positionAlign : string;
-                          size : number|string;
+                          size : number | string;
                           snapToLines : boolean;
                           startTime : number;
                           vertical : string; }
 
-// surcharge TextTrack to allow adding ICompatVTTCue to it
+/**
+ * Overriden TextTrack browser implementation, to also include our own
+ * definition of a VTTCue.
+ */
 interface ICompatTextTrack extends TextTrack {
-  addCue(cue: TextTrackCue|ICompatVTTCue) : void;
-  removeCue(cue: TextTrackCue|ICompatVTTCue) : void;
+  addCue(cue: TextTrackCue | ICompatVTTCue) : void;
+  removeCue(cue: TextTrackCue | ICompatVTTCue) : void;
+  HIDDEN? : "hidden";
+  SHOWING? :  "showing";
 }
 
-// Document with added optional functions for old browsers
+/**
+ * Browser implementation of the `document` object with added optional vendored
+ * functions for some "old" browsers.
+ */
 interface ICompatDocument extends Document { mozCancelFullScreen? : () => void;
                                              mozFullScreenElement? : HTMLElement;
                                              mozHidden? : boolean;
                                              msExitFullscreen? : () => void;
                                              webkitExitFullscreen : () => void;
-                                             fullscreenElement : Element|null;
-                                             msFullscreenElement? : Element|null;
-                                             webkitFullscreenElement : Element|null;
+                                             fullscreenElement : Element | null;
+                                             msFullscreenElement? : Element | null;
+                                             webkitFullscreenElement : Element | null;
                                              msHidden? : boolean;
                                              webkitHidden? : boolean; }
 
-// Element with added optional functions for old browsers
+/**
+ * HTMLMediaElement with added optional vendored functions used by "old"
+ * browsers.
+ * And TypeScript forgot to add assiociated AudioTrackList and VideoTrackList
+ * (and yes apparently a HTMLAudioElement can have an assiociated
+ * VideoTrackList).
+ *
+ * Note: I prefer to define my own `ICompatHTMLMediaElement` rather to extend
+ * the original definition to better detect which types have been extended and
+ * are not actually valid TypeScript types.
+ */
 interface ICompatHTMLMediaElement extends HTMLMediaElement {
   mozRequestFullScreen? : () => void;
   msRequestFullscreen? : () => void;
   webkitRequestFullscreen : () => void;
+  readonly audioTracks? : ICompatAudioTrackList;
+  readonly videoTracks? : ICompatVideoTrackList;
 }
 
-// for some reasons, Typescript seem to forget about SessionTypes
-// XXX TODO remove when the issue is resolved
-// https://github.com/Microsoft/TypeScript/issues/19189
+/**
+ * AudioTrackList implementation (that TS forgot).
+ * Directly taken from the WHATG spec:
+ * https://html.spec.whatwg.org/multipage/media.html#audiotracklist
+ */
+interface ICompatAudioTrackList extends EventTarget {
+  readonly length : number;
+  getTrackById(id : string) : ICompatAudioTrack;
+  onchange? : ((n : Event) => void) | null;
+  onaddtrack? : ((n : Event) => void) | null;
+  onremovetrack? : ((n : Event) => void) | null;
+
+  // It can be indexed
+  [x : number] : ICompatAudioTrack;
+}
+
+/**
+ * AudioTrack implementation (that TS forgot).
+ * Directly taken from the WHATG spec:
+ * https://html.spec.whatwg.org/multipage/media.html#audiotracklist
+ */
+interface ICompatAudioTrack {
+  id : string;
+  kind : string;
+  label : string;
+  language : string;
+  enabled : boolean;
+}
+
+/**
+ * VideoTrackList implementation (that TS forgot).
+ * Directly taken from the WHATG spec:
+ * https://html.spec.whatwg.org/multipage/media.html#audiotracklist
+ */
+interface ICompatVideoTrackList extends EventTarget {
+  readonly length : number;
+  selectedIndex : number;
+  getTrackById(id : string) : ICompatVideoTrack;
+  onchange? : ((n : Event) => void) | null;
+  onaddtrack? : ((n : Event) => void) | null;
+  onremovetrack? : ((n : Event) => void) | null;
+
+  // It can be indexed
+  [x : number] : ICompatVideoTrack;
+}
+
+/**
+ * VideoTrack implementation (that TS forgot).
+ * Directly taken from the WHATG spec:
+ * https://html.spec.whatwg.org/multipage/media.html#audiotracklist
+ */
+interface ICompatVideoTrack {
+  id : string;
+  kind : string;
+  label : string;
+  language : string;
+  selected : boolean;
+}
+
+/**
+ * MediaKeySystemAccess browser implementation.
+ * For some reasons, Typescript seem to forget about SessionTypes.
+ * XXX TODO remove when the issue is resolved:
+ * https://github.com/Microsoft/TypeScript/issues/19189
+ */
 interface ICompatMediaKeySystemAccess extends MediaKeySystemAccess {
   getConfiguration() : ICompatMediaKeySystemConfiguration;
 }
+
+/**
+ * MediaKeySystemConfiguration as returned by an EME-compliant
+ * MediaKeySystemAccess implementation.
+ */
 interface ICompatMediaKeySystemConfiguration {
   audioCapabilities?: MediaKeySystemMediaCapability[];
   distinctiveIdentifier?: MediaKeysRequirement;
@@ -82,37 +172,51 @@ interface ICompatMediaKeySystemConfiguration {
   sessionTypes?: string[];
 }
 
-// Draft from W3C https://wicg.github.io/picture-in-picture/#pictureinpicturewindow
+/**
+ * Browser implementation of a Picture in picture window, as defined in the the
+ * draft from the W3C:
+ * https://wicg.github.io/picture-in-picture/#pictureinpicturewindow
+ */
 export interface ICompatPictureInPictureWindow
   extends EventTarget { width: number;
                         height: number; }
 
+/**
+ * Shortcut to the global browser object `window`. Set to an empty object in
+ * non-browser platforms
+ */
 const win = isNode ? {} :
                      window as any;
 /* tslint:disable no-unsafe-any */
+
+/** Browser implementation of an HTMLElement. */
 const HTMLElement_ : typeof HTMLElement = win.HTMLElement;
-const VTTCue_ : ICompatVTTCueConstructor|undefined =
-  win.VTTCue != null ? win.VTTCue :
-                       win.TextTrackCue;
+
+/** TextTrack cue constructor, as implemented by the browser. */
+const VTTCue_ : ICompatVTTCueConstructor | undefined =
+  !isNullOrUndefined(win.VTTCue) ? win.VTTCue :
+                                   win.TextTrackCue;
 /* tslint:enable no-unsafe-any */
 
 /* tslint:disable no-unsafe-any */
-const MediaSource_ : typeof MediaSource|undefined =
-  win.MediaSource != null ? win.MediaSource :
-  win.MozMediaSource != null ? win.MozMediaSource :
-  win.WebKitMediaSource != null ? win.WebKitMediaSource :
-                                  win.MSMediaSource;
+/** MediaSource implementation, including vendored implementations. */
+const MediaSource_ : typeof MediaSource | undefined =
+  !isNullOrUndefined(win.MediaSource)       ? win.MediaSource :
+  !isNullOrUndefined(win.MozMediaSource)    ? win.MozMediaSource :
+  !isNullOrUndefined(win.WebKitMediaSource) ? win.WebKitMediaSource :
+                                              win.MSMediaSource;
 /* tslint:enable no-unsafe-any */
 
-const MediaKeys_ : ICompatMediaKeysConstructor|undefined = (() => {
+/**
+ * MediaKeys implementation, including vendored implementations and a fallback
+ * one which will throw when calling one of its methods.
+ */
+const MediaKeys_ : ICompatMediaKeysConstructor = (() => {
   /* tslint:disable no-unsafe-any */
-  if (shouldUseWebKitMediaKeys()) {
-    return win.WebKitMediaKeys;
-  }
-  return win.MediaKeys != null ? win.MediaKeys :
-         win.MSMediaKeys != null ? win.MSMediaKeys :
-         win.MozMediaKeys != null ? win.MozMediaKeys :
-         win.WebKitMediaKeys != null ? win.WebKitMediaKeys :
+  return !isNullOrUndefined(win.MediaKeys)    ? win.MediaKeys :
+         !isNullOrUndefined(win.MozMediaKeys) ? win.MozMediaKeys :
+
+         // fallback implementation if not supported
          class {
            public readonly create : () => never;
            public readonly isTypeSupported : () => never;
@@ -133,14 +237,18 @@ const MediaKeys_ : ICompatMediaKeysConstructor|undefined = (() => {
   /* tslint:enable no-unsafe-any */
 })();
 
+/** List an HTMLMediaElement's possible values for its readyState property. */
 const READY_STATES = { HAVE_NOTHING: 0,
                        HAVE_METADATA: 1,
                        HAVE_CURRENT_DATA: 2,
                        HAVE_FUTURE_DATA: 3,
                        HAVE_ENOUGH_DATA: 4 };
 
-// TODO w3c defines onremovetrack and onchange attributes which are not present on
-// ts type definition
+/**
+ * TextTrackList browser implementation.
+ * TODO W3C defines onremovetrack and onchange attributes which are not present on
+ * ts type definition, open a TS issue?
+ */
 export interface ICompatTextTrackList extends TextTrackList {
   onremovetrack: ((ev: TrackEvent) => void) | null;
   onchange: (() => void) | null;
@@ -150,6 +258,10 @@ export {
   HTMLElement_,
   ICompatDocument,
   ICompatHTMLMediaElement,
+  ICompatAudioTrackList,
+  ICompatVideoTrackList,
+  ICompatAudioTrack,
+  ICompatVideoTrack,
   ICompatMediaKeySystemAccess,
   ICompatMediaKeySystemConfiguration,
   ICompatMediaKeysConstructor,

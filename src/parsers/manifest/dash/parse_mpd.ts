@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+import config from "../../../config";
+import Manifest from "../../../manifest";
 import arrayFind from "../../../utils/array_find";
-import idGenerator from "../../../utils/id_generator";
 import { normalizeBaseURL } from "../../../utils/resolve_url";
 import { IParsedManifest } from "../types";
-import checkManifestIDs from "../utils/check_manifest_ids";
 import extractMinimumAvailabilityTimeOffset from "./extract_minimum_availability_time_offset";
 import getClockOffset from "./get_clock_offset";
 import getHTTPUTCTimingURL from "./get_http_utc-timing_url";
@@ -37,17 +37,32 @@ import parsePeriods, {
 } from "./parse_periods";
 import resolveBaseURLs from "./resolve_base_urls";
 
-const generateManifestID = idGenerator();
+const { DASH_FALLBACK_LIFETIME_WHEN_MINIMUM_UPDATE_PERIOD_EQUAL_0 } = config;
 
+/** Possible options for `parseMPD`.  */
 export interface IMPDParserArguments {
-  aggressiveMode : boolean; // Whether we should request new segments even if
-                            // they are not yet finished
-  externalClockOffset? : number; // If set, offset to add to `performance.now()`
-                                 // to obtain the current server's time
-  manifestReceivedTime? : number; // Time, in terms of `performance.now` at
-                                  // which this MPD was received.
-  referenceDateTime? : number; // Default base time, in seconds
-  url? : string; // URL of the manifest (post-redirection if one)
+  /** Whether we should request new segments even if they are not yet finished. */
+  aggressiveMode : boolean;
+  /**
+   * If set, offset to add to `performance.now()` to obtain the current server's
+   * time.
+   */
+  externalClockOffset? : number;
+  /** Time, in terms of `performance.now` at which this MPD was received. */
+  manifestReceivedTime? : number;
+  /** Default base time, in seconds. */
+  referenceDateTime? : number;
+  /**
+   * The parser should take this Manifest - which is a previously parsed
+   * Manifest for the same dynamic content - as a base to speed-up the parsing
+   * process.
+   * /!\ If unexpected differences exist between the two, there is a risk of
+   * de-synchronization with what is actually on the server,
+   * Use with moderation.
+   */
+  unsafelyBaseOnPreviousManifest : Manifest | null;
+  /** URL of the manifest (post-redirection if one). */
+  url? : string;
 }
 
 interface ILoadedResource { url? : string;
@@ -61,7 +76,8 @@ export type IParserResponse<T> = { type : "needs-ressources";
                                                loadedRessources : ILoadedResource[]
                                              ) => IParserResponse<T>; }; } |
                                  { type : "done";
-                                   value : T; };
+                                   value : { parsed : T;
+                                             warnings : Error[]; }; };
 /**
  * @param {Element} root - The MPD root.
  * @param {Object} args
@@ -72,19 +88,22 @@ export default function parseMPD(
   args : IMPDParserArguments
 ) : IParserResponse<IParsedManifest> {
   // Transform whole MPD into a parsed JS object representation
-  const mpdIR = createMPDIntermediateRepresentation(root);
-  return loadExternalRessourcesAndParse(mpdIR, args);
+  const [mpdIR,
+         warnings] = createMPDIntermediateRepresentation(root);
+  return loadExternalRessourcesAndParse(mpdIR, args, warnings);
 }
 
 /**
  * Checks if xlinks needs to be loaded before actually parsing the manifest.
  * @param {Object} mpdIR
  * @param {Object} args
+ * @param {Array.<Object>} warnings
  * @returns {Object}
  */
 function loadExternalRessourcesAndParse(
   mpdIR : IMPDIntermediateRepresentation,
   args : IMPDParserArguments,
+  warnings : Error[],
   hasLoadedClock? : boolean
 ) : IParserResponse<IParsedManifest> {
   const { children: rootChildren,
@@ -124,7 +143,7 @@ function loadExternalRessourcesAndParse(
               }
               clockOffset = getClockOffset(loadedRessources[0].responseData);
               args.externalClockOffset = clockOffset;
-              return loadExternalRessourcesAndParse(mpdIR, args, true);
+              return loadExternalRessourcesAndParse(mpdIR, args, warnings, true);
             },
           },
         };
@@ -141,7 +160,7 @@ function loadExternalRessourcesAndParse(
   }
 
   if (xlinksToLoad.length === 0) {
-    return parseCompleteIntermediateRepresentation(mpdIR, args, xlinkInfos);
+    return parseCompleteIntermediateRepresentation(mpdIR, args, warnings, xlinkInfos);
   }
 
   return {
@@ -170,16 +189,20 @@ function loadExternalRessourcesAndParse(
           const periodsIR : IPeriodIntermediateRepresentation[] = [];
           for (let j = 0; j < periods.length; j++) {
             if (periods[j].nodeType === Node.ELEMENT_NODE) {
-              const periodIR = createPeriodIntermediateRepresentation(periods[j]);
+              const [periodIR,
+                     periodWarnings] = createPeriodIntermediateRepresentation(periods[j]);
               xlinkInfos.set(periodIR, { receivedTime, sendingTime, url });
               periodsIR.push(periodIR);
+              if (periodWarnings.length > 0) {
+                warnings.push(...periodWarnings);
+              }
             }
           }
 
           // replace original "xlinked" periods by the real deal
           rootChildren.periods.splice(index, 1, ...periodsIR);
         }
-        return loadExternalRessourcesAndParse(mpdIR, args);
+        return loadExternalRessourcesAndParse(mpdIR, args, warnings);
       },
     },
   };
@@ -189,11 +212,14 @@ function loadExternalRessourcesAndParse(
  * Parse the MPD intermediate representation into a regular Manifest.
  * @param {Object} mpdIR
  * @param {Object} args
+ * @param {Array.<Object>} warnings
+ * @param {Object} xlinkInfos
  * @returns {Object}
  */
 function parseCompleteIntermediateRepresentation(
   mpdIR : IMPDIntermediateRepresentation,
   args : IMPDParserArguments,
+  warnings : Error[],
   xlinkInfos : IXLinkInfos
 ) : IParserResponse<IParsedManifest> {
   const { children: rootChildren,
@@ -206,7 +232,8 @@ function parseCompleteIntermediateRepresentation(
   const availabilityStartTime = parseAvailabilityStartTime(rootAttributes,
                                                            args.referenceDateTime);
   const timeShiftBufferDepth = rootAttributes.timeShiftBufferDepth;
-  const clockOffset = args.externalClockOffset;
+  const { externalClockOffset: clockOffset,
+           unsafelyBaseOnPreviousManifest } = args;
   const availabilityTimeOffset =
     extractMinimumAvailabilityTimeOffset(rootChildren.baseURLs);
 
@@ -219,15 +246,13 @@ function parseCompleteIntermediateRepresentation(
                           isDynamic,
                           receivedTime: args.manifestReceivedTime,
                           timeShiftBufferDepth,
+                          unsafelyBaseOnPreviousManifest,
                           xlinkInfos };
   const parsedPeriods = parsePeriods(rootChildren.periods, manifestInfos);
   const mediaPresentationDuration = rootAttributes.duration;
   const parsedMPD : IParsedManifest = {
     availabilityStartTime,
-    baseURLs,
     clockOffset: args.externalClockOffset,
-    id: rootAttributes.id != null ? rootAttributes.id :
-                                    "gen-dash-manifest-" + generateManifestID(),
     isDynamic,
     isLive: isDynamic,
     periods: parsedPeriods,
@@ -238,13 +263,14 @@ function parseCompleteIntermediateRepresentation(
   };
 
   // -- add optional fields --
-  if (rootAttributes.minimumUpdatePeriod != null
-      && rootAttributes.minimumUpdatePeriod > 0)
+  if (rootAttributes.minimumUpdatePeriod !== undefined &&
+      rootAttributes.minimumUpdatePeriod >= 0)
   {
-    parsedMPD.lifetime = rootAttributes.minimumUpdatePeriod;
+    parsedMPD.lifetime = rootAttributes.minimumUpdatePeriod === 0 ?
+      DASH_FALLBACK_LIFETIME_WHEN_MINIMUM_UPDATE_PERIOD_EQUAL_0 :
+      rootAttributes.minimumUpdatePeriod;
   }
 
-  checkManifestIDs(parsedMPD);
   const [minTime, maxTime] = getMinimumAndMaximumPosition(parsedMPD);
   const now = performance.now();
   if (!isDynamic) {
@@ -295,5 +321,5 @@ function parseCompleteIntermediateRepresentation(
     }
   }
 
-  return { type: "done", value: parsedMPD };
+  return { type: "done", value: { parsed: parsedMPD, warnings } };
 }

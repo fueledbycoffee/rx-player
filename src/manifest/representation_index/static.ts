@@ -26,7 +26,7 @@ export interface IStaticRepresentationIndexInfos { media: string; }
  * @class StaticRepresentationIndex
  */
 export default class StaticRepresentationIndex implements IRepresentationIndex {
-  // URL of the content
+  /** URL at which the content is available. */
   private readonly _mediaURLs: string;
 
   /**
@@ -115,6 +115,10 @@ export default class StaticRepresentationIndex implements IRepresentationIndex {
 
   _addSegments() : void {
     log.warn("Tried add Segments to a static RepresentationIndex");
+  }
+
+  _replace() : void {
+    log.warn("Tried to replace a static RepresentationIndex");
   }
 
   _update() : void {

@@ -58,8 +58,6 @@ export interface IMetaPlaylist {
   }>;
 }
 
-const generateManifestID = idGenerator();
-
 /**
  * Parse playlist string to JSON.
  * Returns an array of contents.
@@ -230,6 +228,7 @@ function createManifest(
               closedCaption: currentAdaptation.isClosedCaption,
               isDub: currentAdaptation.isDub,
               language: currentAdaptation.language,
+              isSignInterpreted: currentAdaptation.isSignInterpreted,
             });
             acc[type] = adaptationsForCurrentType;
           }
@@ -294,10 +293,8 @@ function createManifest(
 
   const time = performance.now();
   const manifest = { availabilityStartTime: 0,
-                     baseURLs: null,
                      clockOffset,
                      suggestedPresentationDelay: 10,
-                     id: "gen-metaplaylist-man-" + generateManifestID(),
                      periods,
                      transportType: "metaplaylist",
                      isLive: isDynamic,

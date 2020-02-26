@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import objectAssign from "object-assign";
 import {
   combineLatest as observableCombineLatest,
+  concat as observableConcat,
   Observable,
   of as observableOf,
 } from "rxjs";
@@ -29,6 +29,7 @@ import Manifest from "../../manifest";
 import dashManifestParser, {
   IMPDParserResponse,
 } from "../../parsers/manifest/dash";
+import objectAssign from "../../utils/object_assign";
 import request from "../../utils/request";
 import {
   ILoaderDataLoadedValue,
@@ -36,6 +37,7 @@ import {
   IManifestParserObservable,
   ITransportOptions,
 } from "../types";
+import returnParsedManifest from "../utils/return_parsed_manifest";
 
 /**
  * Request external "xlink" ressource from a MPD.
@@ -62,7 +64,7 @@ export default function generateManifestParser(
 ) : (x : IManifestParserArguments) => IManifestParserObservable {
   const { aggressiveMode,
           referenceDateTime } = options;
-  const serverTimeOffset = options.serverSyncInfos != null ?
+  const serverTimeOffset = options.serverSyncInfos !== undefined ?
     options.serverSyncInfos.serverTimestamp - options.serverSyncInfos.clientTime :
     undefined;
   return function manifestParser(
@@ -71,18 +73,19 @@ export default function generateManifestParser(
     const { response, scheduleRequest } = args;
     const argClockOffset = args.externalClockOffset;
     const loaderURL = args.url;
-    const url = response.url == null ? loaderURL :
-                                       response.url;
+    const url = response.url ?? loaderURL;
     const data = typeof response.responseData === "string" ?
                    new DOMParser().parseFromString(response.responseData,
                                                    "text/xml") :
                    // TODO find a way to check if Document?
                    response.responseData as Document;
 
-    const externalClockOffset = serverTimeOffset == null ? argClockOffset :
-                                                           serverTimeOffset;
+    const externalClockOffset = serverTimeOffset ?? argClockOffset;
+    const unsafelyBaseOnPreviousManifest = args.unsafeMode ? args.previousManifest :
+                                                             null;
     const parsedManifest = dashManifestParser(data, { aggressiveMode:
                                                         aggressiveMode === true,
+                                                      unsafelyBaseOnPreviousManifest,
                                                       url,
                                                       referenceDateTime,
                                                       externalClockOffset });
@@ -92,8 +95,12 @@ export default function generateManifestParser(
       parserResponse : IMPDParserResponse
     ) : IManifestParserObservable {
       if (parserResponse.type === "done") {
-        const manifest = new Manifest(parserResponse.value, options);
-        return observableOf({ manifest, url });
+        const { warnings, parsed } = parserResponse.value;
+        const warningEvents = warnings.map(warning => ({ type: "warning" as const,
+                                                         value: warning }));
+        const manifest = new Manifest(parsed, options);
+        return observableConcat(observableOf(...warningEvents),
+                                returnParsedManifest(manifest, url));
       }
 
       const { ressources, continue: continueParsing } = parserResponse.value;

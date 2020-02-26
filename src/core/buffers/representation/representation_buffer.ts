@@ -24,7 +24,6 @@
  */
 
 import nextTick from "next-tick";
-import objectAssign from "object-assign";
 import {
   combineLatest as observableCombineLatest,
   concat as observableConcat,
@@ -62,12 +61,14 @@ import {
   ISegmentParserParsedInitSegment,
   ISegmentParserSegment,
 } from "../../../transports";
+import assertUnreachable from "../../../utils/assert_unreachable";
+import objectAssign from "../../../utils/object_assign";
 import SimpleSet from "../../../utils/simple_set";
 import {
   IPrioritizedSegmentFetcher,
   ISegmentFetcherEvent,
   ISegmentFetcherWarning,
-} from "../../pipelines";
+} from "../../fetchers";
 import { QueuedSourceBuffer } from "../../source_buffers";
 import EVENTS from "../events_generators";
 import {
@@ -228,6 +229,7 @@ export default function RepresentationBuffer<T>({
 
       const segmentInventory = queuedSourceBuffer.getInventory();
       let neededSegments = getNeededSegments({ content,
+                                               currentPlaybackTime: timing.currentTime,
                                                knownStableBitrate,
                                                loadedSegmentPendingPush,
                                                neededRange,
@@ -450,10 +452,10 @@ export default function RepresentationBuffer<T>({
             const { index } = representation;
             if (index.isSegmentStillAvailable(retriedSegment) === false) {
               reCheckNeededSegments$.next();
-            } else if (index.canBeOutOfSyncError(evt.value.error)) {
+            } else if (index.canBeOutOfSyncError(evt.value.error, retriedSegment)) {
               return observableOf(EVENTS.manifestMightBeOufOfSync());
             }
-            return EMPTY;
+            return EMPTY; // else, ignore.
           }));
 
       case "parsed-init-segment":
@@ -488,6 +490,9 @@ export default function RepresentationBuffer<T>({
               loadedSegmentPendingPush.remove(segment.id);
             }));
       }
+
+      default:
+        assertUnreachable(evt);
     }
   }
 }

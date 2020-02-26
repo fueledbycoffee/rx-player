@@ -16,7 +16,7 @@
 
 import BufferOrchestrator, {
   IBufferOrchestratorClockTick,
-} from "./buffer_orchestrator";
+} from "./orchestrator";
 export * from "./types";
 
 export default BufferOrchestrator;

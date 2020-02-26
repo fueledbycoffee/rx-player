@@ -16,6 +16,10 @@
 
 import Player from "./public_api";
 export {
+  IStreamEvent,
+  IStreamEventData,
+} from "./public_api";
+export {
   IConstructorOptions,
   ILoadVideoOptions,
 
@@ -30,7 +34,16 @@ export {
   IStartAtOption,
 } from "./option_parsers";
 export {
+  ITMAudioTrackListItem,
+  ITMTextTrackListItem,
+  ITMVideoTrackListItem,
+
+  ITMAudioTrack,
+  ITMTextTrack,
+  ITMVideoTrack,
+
   IAudioTrackPreference,
   ITextTrackPreference,
+  IVideoTrackPreference,
 } from "./track_choice_manager";
 export default Player;

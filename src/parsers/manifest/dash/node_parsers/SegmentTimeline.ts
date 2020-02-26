@@ -14,28 +14,20 @@
  * limitations under the License.
  */
 
-import parseS, {
-  IParsedS,
-} from "./S";
-
-export type IParsedTimeline = IParsedS[];
+export type ITimelineParser = () => HTMLCollection;
 
 /**
  * @param {Element} root
- * @returns {Array.<Object>}
+ * @returns {Function}
  */
-export default function parseSegmentTimeline(root: Element) : IParsedTimeline {
-  const parsedS : IParsedS[] = [];
-  const timelineChildren = root.childNodes;
-  for (let i = 0; i < timelineChildren.length; i++) {
-    if (timelineChildren[i].nodeType === Node.ELEMENT_NODE) {
-      const currentElement = timelineChildren[i] as Element;
-
-      if (currentElement.nodeName === "S") {
-        const s = parseS(currentElement);
-        parsedS.push(s);
-      }
+export default function createSegmentTimelineParser(root: Element) : ITimelineParser {
+  let result : HTMLCollection | null = null;
+  return function() : HTMLCollection {
+    if (result === null) {
+      const elements = root.getElementsByTagName("S");
+      result = elements;
+      return elements;
     }
-  }
-  return parsedS;
+    return result;
+  };
 }
