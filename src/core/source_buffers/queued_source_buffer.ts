@@ -90,7 +90,7 @@ export interface IPushedChunkInventoryInfos {
 
 // Information to give when pushing a new chunk via the `pushChunk` method.
 export interface IPushChunkInfos<T> { data : IPushedChunkData<T>;
-                                      inventoryInfos : IPushedChunkInventoryInfos; }
+                                      inventoryInfos? : IPushedChunkInventoryInfos; }
 
 // Information to give when indicating a whole segment has been pushed via the
 // `endOfSegment` method.
@@ -151,7 +151,7 @@ interface IPushData<T> { isInit : boolean;
 // Once processed, Push queue items are separated into one or multiple tasks
 interface IPushTask<T> { type : SourceBufferAction.Push;
                          steps : Array<IPushData<T>>;
-                         inventoryData : IInsertedChunkInfos;
+                         inventoryData? : IInsertedChunkInfos;
                          subject : Subject<unknown>; }
 
 // Type of task currently processed by the QueuedSourceBuffer
@@ -444,7 +444,9 @@ export default class QueuedSourceBuffer<T> {
       {
         switch (this._pendingTask.type) {
           case SourceBufferAction.Push:
-            this._segmentInventory.insertChunk(this._pendingTask.inventoryData);
+            if (this._pendingTask.inventoryData !== undefined) {
+              this._segmentInventory.insertChunk(this._pendingTask.inventoryData);
+            }
             break;
           case SourceBufferAction.EndOfSegment:
             this._segmentInventory.completeSegment(this._pendingTask.value);
@@ -592,7 +594,6 @@ function convertQueueItemToTask<T>(
       const steps = [];
       const itemValue = item.value;
       const { data, inventoryInfos } = itemValue;
-      const { estimatedDuration, estimatedStart, segment } = inventoryInfos;
 
       // Cutting exactly at the start or end of the appendWindow can lead to
       // cases of infinite rebuffering due to how browser handle such windows.
@@ -624,26 +625,30 @@ function convertQueueItemToTask<T>(
         return null;
       }
 
-      let start = estimatedStart === undefined ? segment.time / segment.timescale :
-                                                 estimatedStart;
-      const duration = estimatedDuration === undefined ?
-        segment.duration / segment.timescale :
-        estimatedDuration;
-      let end = start + duration;
+      let inventoryData;
+      if (inventoryInfos !== undefined) {
+        const { estimatedDuration, estimatedStart, segment } = inventoryInfos;
+        let start = estimatedStart === undefined ? segment.time / segment.timescale :
+                                                   estimatedStart;
+        const duration = estimatedDuration === undefined ?
+          segment.duration / segment.timescale :
+          estimatedDuration;
+        let end = start + duration;
 
-      if (safeAppendWindow[0] !== undefined) {
-        start = Math.max(start, safeAppendWindow[0]);
-      }
-      if (safeAppendWindow[1] !== undefined) {
-        end = Math.min(end, safeAppendWindow[1]);
-      }
+        if (safeAppendWindow[0] !== undefined) {
+          start = Math.max(start, safeAppendWindow[0]);
+        }
+        if (safeAppendWindow[1] !== undefined) {
+          end = Math.min(end, safeAppendWindow[1]);
+        }
 
-      const inventoryData = { period: inventoryInfos.period,
-                              adaptation: inventoryInfos.adaptation,
-                              representation: inventoryInfos.representation,
-                              segment: inventoryInfos.segment,
-                              start,
-                              end };
+        inventoryData = { period: inventoryInfos.period,
+                          adaptation: inventoryInfos.adaptation,
+                          representation: inventoryInfos.representation,
+                          segment: inventoryInfos.segment,
+                          start,
+                          end };
+      }
       return { type: SourceBufferAction.Push,
                steps,
                inventoryData,
