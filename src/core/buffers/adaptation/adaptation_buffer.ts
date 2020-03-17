@@ -54,7 +54,7 @@ import {
 import log from "../../../log";
 import Manifest, {
   Adaptation,
-  Period,
+  LoadedPeriod,
   Representation,
 } from "../../../manifest";
 import concatMapLatest from "../../../utils/concat_map_latest";
@@ -110,7 +110,7 @@ export interface IAdaptationBufferArguments<T> {
   clock$ : Observable<IAdaptationBufferClockTick>;
   /** Content you want to create this buffer for. */
   content : { manifest : Manifest;
-              period : Period;
+              period : LoadedPeriod;
               adaptation : Adaptation; };
   /**
    * Strategy taken when the user switch manually the current Representation:

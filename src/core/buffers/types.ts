@@ -19,7 +19,8 @@ import { ICustomError } from "../../errors";
 import {
   Adaptation,
   ISegment,
-  Period,
+  LoadedPeriod,
+  PartialPeriod,
   Representation,
 } from "../../manifest";
 import { IBufferType } from "../source_buffers";
@@ -27,7 +28,7 @@ import { IBufferType } from "../source_buffers";
 // Emitted after a new segment has been added to the SourceBuffer
 export interface IBufferEventAddedSegment<T> {
   type : "added-segment";
-  value : { content: { period : Period;
+  value : { content: { period : LoadedPeriod;
                        adaptation : Adaptation;
                        representation : Representation; };
             segment : ISegment; // The concerned Segment
@@ -36,7 +37,8 @@ export interface IBufferEventAddedSegment<T> {
 }
 
 // The Manifest needs to be refreshed.
-// The buffer might still download segments after this message
+// The buffer might still continue to download segments event after sending this
+// event
 export interface IBufferNeedsManifestRefresh {
   type : "needs-manifest-refresh";
   value : undefined;
@@ -70,7 +72,7 @@ export interface IBufferStateActive {
   };
 }
 
-// State emitted when the buffer has been filled to the end
+// State emitted when a RepresentationBuffer has been filled to the end
 export interface IBufferStateFull {
   type : "full-buffer";
 
@@ -89,7 +91,7 @@ export type IRepresentationBufferStateEvent = IBufferNeededActions |
                                               IBufferStateActive |
                                               IBufferManifestMightBeOutOfSync;
 
-// Events emitted by the Buffer
+// Events emitted by the RepresentationBuffer
 export type IRepresentationBufferEvent<T> = IBufferEventAddedSegment<T> |
                                             IProtectedSegmentEvent |
                                             IRepresentationBufferStateEvent |
@@ -106,7 +108,7 @@ export interface IBitrateEstimationChangeEvent {
 export interface IRepresentationChangeEvent {
   type : "representationChange";
   value : { type : IBufferType;
-            period : Period;
+            period : LoadedPeriod;
             representation : Representation |
                              null; };
 }
@@ -121,26 +123,35 @@ export type IAdaptationBufferEvent<T> = IRepresentationBufferEvent<T> |
 // The currently-downloaded Adaptation changed.
 export interface IAdaptationChangeEvent { type : "adaptationChange";
                                           value : { type : IBufferType;
-                                                    period : Period;
+                                                    period : LoadedPeriod;
                                                     adaptation : Adaptation |
                                                                  null; }; }
 // Currently-playing Period changed.
 export interface IActivePeriodChangedEvent { type: "activePeriodChanged";
-                                             value : { period: Period }; }
+                                             value : { period: LoadedPeriod }; }
+
+// a PartialPeriod needs to be loaded to load a PeriodBuffer
+export interface INeedsLoadedPeriodEvent {
+  type: "needs-loaded-period";
+  value : { type : IBufferType;
+            period : PartialPeriod; };
+}
 
 // a new PeriodBuffer is ready, waiting for an adaptation/track choice.
 export interface IPeriodBufferReadyEvent {
   type : "periodBufferReady";
   value : { type : IBufferType;
-            period : Period;
+            period : LoadedPeriod;
             adaptation$ : Subject<Adaptation|null>; };
 }
 
 // A PeriodBuffer has been cleared (it is not used anymore). Can be used for
 // cleaning-up resources.
-export interface IPeriodBufferClearedEvent { type : "periodBufferCleared";
-                                             value : { type : IBufferType;
-                                                       period : Period; }; }
+export interface IPeriodBufferClearedEvent {
+  type : "periodBufferCleared";
+  value : { type : IBufferType;
+            period : LoadedPeriod | PartialPeriod; };
+}
 
 // The last PeriodBuffers from every type are full.
 export interface IEndOfStreamEvent { type: "end-of-stream";
@@ -158,7 +169,7 @@ export interface ICompletedBufferEvent { type: "complete-buffer";
 export interface INeedsMediaSourceReload { type: "needs-media-source-reload";
                                            value: { currentTime : number;
                                                     isPaused : boolean;
-                                                    period : Period; }; }
+                                                    period : LoadedPeriod; }; }
 
 // Emitted after the buffers have been cleaned due to an update of the
 // decipherability status of some segment.
@@ -176,7 +187,8 @@ export type IPeriodBufferEvent = IPeriodBufferReadyEvent |
                                  IAdaptationChangeEvent;
 
 // Events coming from function(s) managing multiple PeriodBuffers.
-export type IMultiplePeriodBuffersEvent = IPeriodBufferEvent |
+export type IMultiplePeriodBuffersEvent = INeedsLoadedPeriodEvent |
+                                          IPeriodBufferEvent |
                                           IPeriodBufferClearedEvent |
                                           ICompletedBufferEvent;
 

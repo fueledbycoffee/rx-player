@@ -24,7 +24,8 @@ import Manifest, {
   ISegment,
   ISupplementaryImageTrack,
   ISupplementaryTextTrack,
-  Period,
+  LoadedPeriod,
+  PartialPeriod,
   Representation,
 } from "../manifest";
 import { IBifThumbnail } from "../parsers/images/bif";
@@ -62,15 +63,25 @@ export interface INextSegmentsInfos {
 
 // -- arguments
 
-// Arguments for the loader of the manifest pipeline
+/** Arguments for the loader of the manifest pipeline. */
 export interface IManifestLoaderArguments {
-  url? : string; // URL of the concerned manifest
+  /** URL of the concerned manifest at which you want to do the request on. */
+  url? : string;
 }
 
-// Argument for the loader of the segment pipelines
+/** Arguments for the loader of the period pipeline. */
+export interface IPeriodLoaderArguments {
+  /** Manifest related to this period. */
+  manifest : Manifest;
+  /** The period you want to load or refresh. */
+  period : PartialPeriod | LoadedPeriod;
+}
+
+/** Argument for the loader of the segment pipelines. */
 export interface ISegmentLoaderArguments {
-  manifest : Manifest; // Manifest related to this segment
-  period : Period; // Period related to this segment
+  /** Manifest related to this segment. */
+  manifest : Manifest;
+  period : LoadedPeriod; // Period related to this segment
   adaptation : Adaptation; // Adaptation related to this segment
   representation : Representation; // Representation related to this segment
   segment : ISegment; // Segment we want to load
@@ -137,6 +148,13 @@ export type IManifestLoaderEvent = ILoaderDataLoaded<ILoadedManifest>;
 export type IManifestLoaderObservable = Observable<IManifestLoaderEvent>;
 export type IManifestLoaderObserver = Observer<IManifestLoaderEvent>;
 
+export type ILoadedPeriod = Document |
+                            string |
+                            ILoadedManifest; // For metaplaylists
+export type IPeriodLoaderEvent = ILoaderDataLoaded<ILoadedPeriod>;
+export type IPeriodLoaderObservable = Observable<IPeriodLoaderEvent>;
+export type IPeriodLoaderObserver = Observer<IPeriodLoaderEvent>;
+
 export type ISegmentLoaderEvent<T> = ILoaderChunkedDataEvent |
                                      ILoaderRegularDataEvent<T>;
 
@@ -146,6 +164,11 @@ export type ISegmentLoaderObservable<T> = Observable<ILoaderChunkedDataEvent |
 // ---- PARSER ----
 
 // -- arguments
+
+/** allow parsers to load supplementary ressources. */
+export type IRequestScheduler = (request : () =>
+    Observable< ILoaderDataLoadedValue< Document | string > >) =>
+    Observable< ILoaderDataLoadedValue< Document | string > >;
 
 /** Arguments given to the `parser` function of the Manifest pipeline. */
 export interface IManifestParserArguments {
@@ -164,9 +187,7 @@ export interface IManifestParserArguments {
    * Allow the parser to ask for loading supplementary ressources while still
    * profiting from the same retries and error management than the loader.
    */
-  scheduleRequest : (request : () =>
-    Observable< ILoaderDataLoadedValue< Document | string > >) =>
-    Observable< ILoaderDataLoadedValue< Document | string > >;
+  scheduleRequest : IRequestScheduler;
   /**
    * If set to `true`, the Manifest parser can perform advanced optimizations
    * to speed-up the parsing process. Those optimizations might lead to a
@@ -177,6 +198,24 @@ export interface IManifestParserArguments {
   unsafeMode : boolean;
 }
 
+/** Argument given to the parser of the period pipeline */
+export interface IPeriodParserArguments {
+  /** Response from the period loader. */
+  response : ILoaderDataLoadedValue<unknown>;
+  /** Manifest related to this period. */
+  manifest : Manifest;
+  /** The period you want to parse. */
+  period : LoadedPeriod | PartialPeriod;
+  /**
+   * If set, offset to add to `performance.now()` to obtain the current
+   * server's time.
+   */
+  externalClockOffset? : number;
+  /** Used if the Period parser wants to load external ressources. */
+  scheduleRequest : IRequestScheduler;
+}
+
+/** Argument given to the parser of any media segment pipeline */
 export interface ISegmentParserArguments<T> {
   response : { data: T; // Segment's data
                isChunked : boolean; }; // If true, the given response corresponds
@@ -187,7 +226,7 @@ export interface ISegmentParserArguments<T> {
                            // be useful for the following regular segments.
   content : {
     manifest : Manifest; // Manifest related to this segment
-    period : Period; // Period related to this segment
+    period : LoadedPeriod; // Period related to this segment
     adaptation : Adaptation; // Adaptation related to this segment
     representation : Representation; // Representation related to this segment
     segment : ISegment; // The segment we want to parse
@@ -210,6 +249,7 @@ export interface IManifestParserResponseEvent {
 /** Event emitted when a minor error was encountered when parsing the Manifest. */
 export interface IManifestParserWarningEvent {
   type : "warning";
+  /** Describes the error encountered. */
   value : Error;
 }
 
@@ -220,7 +260,16 @@ export type IManifestParserEvent = IManifestParserResponseEvent |
 /** Observable returned by the Manifest parser. */
 export type IManifestParserObservable = Observable<IManifestParserEvent>;
 
-// Format of a parsed initialization segment
+/** Response object returned by the period pipeline's parser. */
+export interface IPeriodParserResponse {
+  /** The Period, once requested and parsed and parsed. */
+  periods : Array<LoadedPeriod | PartialPeriod>;
+}
+
+/** Return value of the period pipeline's parser. */
+export type IPeriodParserObservable = Observable<IPeriodParserResponse>;
+
+/** Format of a parsed initialization segment. */
 export interface ISegmentParserParsedInitSegment<T> {
   initializationData : T | null; // Data to push to initialize the decoder
   initTimescale? : number; // timescale taken from the init segment which might
@@ -232,7 +281,7 @@ export interface ISegmentParserParsedInitSegment<T> {
                                             // Empty if not encrypted.
 }
 
-// Format of a parsed regular (non-initialization) segment
+/** Format of a parsed regular (non-initialization) segment. */
 export interface ISegmentParserParsedSegment<T> {
   chunkData : T | null; // Data to decode
   chunkInfos : IChunkTimingInfos | null; // Timing infos about the segment
@@ -350,6 +399,15 @@ export interface ITransportManifestPipeline { resolver? : IManifestResolverFunct
                                               loader : IManifestLoaderFunction;
                                               parser : IManifestParserFunction; }
 
+export type IPeriodLoaderFunction =
+  (x : IPeriodLoaderArguments) => IPeriodLoaderObservable;
+
+export type IPeriodParserFunction =
+  (x : IPeriodParserArguments) => IPeriodParserObservable;
+
+export interface ITransportPeriodPipeline { loader : IPeriodLoaderFunction;
+                                              parser : IPeriodParserFunction; }
+
 export type ITransportAudioVideoSegmentLoader =
   (x : ISegmentLoaderArguments) => ISegmentLoaderObservable< Uint8Array |
                                                              ArrayBuffer |
@@ -403,13 +461,27 @@ export type ITransportSegmentPipeline = ITransportAudioVideoSegmentPipeline |
                                         ITransportImageSegmentPipeline;
 
 export type ITransportPipeline = ITransportManifestPipeline |
+                                 ITransportPeriodPipeline |
                                  ITransportSegmentPipeline;
 
-export interface ITransportPipelines { manifest : ITransportManifestPipeline;
-                                       audio : ITransportAudioVideoSegmentPipeline;
-                                       video : ITransportAudioVideoSegmentPipeline;
-                                       text : ITransportTextSegmentPipeline;
-                                       image : ITransportImageSegmentPipeline; }
+export interface ITransportPipelines {
+  /** Functions to fetch and parse the Manifest/MPD/Playlist. */
+  manifest : ITransportManifestPipeline;
+  /**
+   * Functions to fetch and parse a single Period/sub-content in the Manifest.
+   * This is not applyable in most transport protocols, where this object can
+   * be ignored.
+   */
+  period? : ITransportPeriodPipeline;
+  /** Functions to fetch and parse an audio segment. */
+  audio : ITransportAudioVideoSegmentPipeline;
+  /** Functions to fetch and parse a video segment. */
+  video : ITransportAudioVideoSegmentPipeline;
+  /** Functions to fetch and parse a text segment. */
+  text : ITransportTextSegmentPipeline;
+  /** Functions to fetch and parse an image segment. */
+  image : ITransportImageSegmentPipeline;
+}
 
 interface IServerSyncInfos { serverTimestamp : number;
                              clientTime : number; }
@@ -435,6 +507,7 @@ export type ITransportFunction = (options : ITransportOptions) =>
 export type CustomSegmentLoader = (
   // first argument: infos on the segment
   args : { adaptation : Adaptation;
+           period : LoadedPeriod | PartialPeriod;
            representation : Representation;
            segment : ISegment;
            transport : string;

@@ -37,7 +37,7 @@ import { formatError } from "../../../errors";
 import log from "../../../log";
 import Manifest, {
   Adaptation,
-  Period,
+  LoadedPeriod,
 } from "../../../manifest";
 import objectAssign from "../../../utils/object_assign";
 import { getLeftSizeOfRange } from "../../../utils/ranges";
@@ -77,13 +77,13 @@ export interface IPeriodBufferArguments {
   bufferType : IBufferType;
   clock$ : Observable<IPeriodBufferClockTick>;
   content : { manifest : Manifest;
-              period : Period; };
+              period : LoadedPeriod; };
   garbageCollectors : WeakMapMemory<QueuedSourceBuffer<unknown>, Observable<never>>;
   segmentFetcherCreator : SegmentFetcherCreator<any>;
   sourceBuffersStore : SourceBuffersStore;
   options: { manualBitrateSwitchingMode : "seamless" | "direct";
-             textTrackOptions? : ITextTrackSourceBufferOptions; };
-  wantedBufferAhead$ : BehaviorSubject<number>;
+             textTrackOptions? : ITextTrackSourceBufferOptions;
+             wantedBufferAhead$ : BehaviorSubject<number>; };
 }
 
 /**
@@ -105,9 +105,9 @@ export default function PeriodBuffer({
   segmentFetcherCreator,
   sourceBuffersStore,
   options,
-  wantedBufferAhead$,
 } : IPeriodBufferArguments) : Observable<IPeriodBufferEvent> {
   const { period } = content;
+  const { wantedBufferAhead$ } = options;
 
   // Emits the chosen Adaptation for the current type.
   // `null` when no Adaptation is chosen (e.g. no subtitles)

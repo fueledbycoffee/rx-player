@@ -160,7 +160,8 @@ export default function createMediaSourceLoader({
     const cancelEndOfStream$ = new Subject<null>();
 
     // Creates Observable which will manage every Buffer for the given Content.
-    const buffers$ = BufferOrchestrator({ manifest, initialPeriod },
+    const buffers$ = BufferOrchestrator(manifest,
+                                        initialTime,
                                         bufferClock$,
                                         abrManager,
                                         sourceBuffersStore,

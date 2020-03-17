@@ -24,7 +24,10 @@ import Manifest, {
   ISupplementaryImageTrack,
   ISupplementaryTextTrack,
 } from "./manifest";
-import Period from "./period";
+import {
+  LoadedPeriod,
+  PartialPeriod,
+} from "./period";
 import Representation from "./representation";
 import IRepresentationIndex, {
   IBaseContentInfos,
@@ -40,7 +43,9 @@ export {
   areSameContent,
 
   // classes
-  Period,
+  LoadedPeriod,
+  PartialPeriod,
+
   Adaptation,
   Representation,
 

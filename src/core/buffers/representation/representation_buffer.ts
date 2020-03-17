@@ -53,7 +53,7 @@ import log from "../../../log";
 import Manifest, {
   Adaptation,
   ISegment,
-  Period,
+  LoadedPeriod,
   Representation,
 } from "../../../manifest";
 import {
@@ -102,7 +102,7 @@ export interface IRepresentationBufferArguments<T> {
   clock$ : Observable<IRepresentationBufferClockTick>;
   content: { adaptation : Adaptation;
              manifest : Manifest;
-             period : Period;
+             period : LoadedPeriod;
              representation : Representation; };
   queuedSourceBuffer : QueuedSourceBuffer<T>;
   segmentFetcher : IPrioritizedSegmentFetcher<T>;
