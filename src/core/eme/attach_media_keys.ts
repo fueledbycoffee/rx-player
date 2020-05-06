@@ -15,11 +15,13 @@
  */
 
 import {
+  concat as observableConcat,
   defer as observableDefer,
+  EMPTY,
   Observable,
   of as observableOf,
 } from "rxjs";
-import { mergeMap } from "rxjs/operators";
+import { ignoreElements } from "rxjs/operators";
 import { setMediaKeys } from "../../compat";
 import log from "../../log";
 import MediaKeysInfosStore from "./media_keys_infos_store";
@@ -53,17 +55,26 @@ export default function attachMediaKeys(
                                    mediaKeys,
                                    loadedSessionsStore });
 
-    return (previousState != null &&
-            previousState.loadedSessionsStore !== loadedSessionsStore ?
-              previousState.loadedSessionsStore.closeAllSessions() :
-              observableOf(null)
-    ).pipe(mergeMap(() => {
-      if (mediaElement.mediaKeys === mediaKeys) {
-        return observableOf(null);
-      }
+    const cleanPreviousSessions$ =
+      previousState != null &&
+      previousState.loadedSessionsStore !== loadedSessionsStore ?
+        previousState.loadedSessionsStore.closeAllSessions() :
+        EMPTY;
+    const cleanPreviousMediaKeys$ =
+      mediaElement.mediaKeys !== null &&
+      mediaElement.mediaKeys !== mediaKeys ? setMediaKeys(mediaElement, null) :
+                                             EMPTY;
+    return observableConcat(
+      cleanPreviousSessions$.pipe(ignoreElements()),
+      cleanPreviousMediaKeys$.pipe(ignoreElements()),
 
-      log.debug("EME: Setting MediaKeys");
-      return setMediaKeys(mediaElement, mediaKeys);
-    }));
+      observableDefer(() => {
+        if (mediaElement.mediaKeys === mediaKeys) {
+          return observableOf(null);
+        }
+
+        log.debug("EME: Setting MediaKeys");
+        return setMediaKeys(mediaElement, mediaKeys);
+      }));
   });
 }
