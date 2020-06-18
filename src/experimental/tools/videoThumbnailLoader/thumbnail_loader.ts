@@ -29,7 +29,7 @@ import {
   mergeMap,
   take,
 } from "rxjs/operators";
-import createSegmentLoader from "../../../core/pipelines/segment/create_segment_loader";
+import createSegmentLoader from "../../../core/fetchers/segment/create_segment_loader";
 import Player from "../../../index";
 import log from "../../../log";
 import { ISegment } from "../../../manifest";
@@ -99,7 +99,9 @@ export default class VideoThumbnailLoader {
       }
     }
 
+    /* tslint:disable deprecation */
     const manifest = this._player.getManifest();
+    /* tslint:enable deprecation */
     if (manifest === null) {
       return PPromise.reject(
         new VideoThumbnailLoaderError("NO_MANIFEST",
@@ -187,10 +189,11 @@ export default class VideoThumbnailLoader {
 
           const segmentLoader = createSegmentLoader(
             loader,
-            { maxRetry: 0,
+            undefined,
+            { baseDelay: 0,
+              maxDelay: 0,
               maxRetryOffline: 0,
-              initialBackoffDelay: 0,
-              maximumBackoffDelay: 0, }
+              maxRetryRegular: 0, }
           );
 
           const segmentLoading$ = segmentLoader({

@@ -27,7 +27,7 @@ import {
   mergeMap,
   shareReplay,
 } from "rxjs/operators";
-import createSegmentLoader from "../../../core/pipelines/segment/create_segment_loader";
+import createSegmentLoader from "../../../core/fetchers/segment/create_segment_loader";
 import { QueuedSourceBuffer } from "../../../core/source_buffers";
 import dash from "../../../transports/dash";
 import prepareSourceBuffer from "./prepare_source_buffer";
@@ -41,10 +41,11 @@ const _currentContentInfos: WeakMap<HTMLMediaElement,
 const { loader, parser } = dash({ lowLatencyMode: false }).video;
 const segmentLoader = createSegmentLoader(
   loader,
-  { maxRetry: 0,
-    maxRetryOffline: 0,
-    initialBackoffDelay: 0,
-    maximumBackoffDelay: 0, });
+  undefined,
+  { baseDelay: 0,
+    maxDelay: 0,
+    maxRetryRegular: 0,
+    maxRetryOffline: 0, });
 
 /**
  * Get current source buffer :
