@@ -67,14 +67,51 @@ export default class Logger {
 
     /* tslint:disable no-invalid-this */
     /* tslint:disable no-console */
-    this.error = (level >= this.LEVELS.ERROR) ? console.error.bind(console) :
-                                                noop;
-    this.warn = (level >= this.LEVELS.WARNING) ? console.warn.bind(console) :
-                                                 noop;
-    this.info = (level >= this.LEVELS.INFO) ? console.info.bind(console) :
-                                              noop;
-    this.debug = (level >= this.LEVELS.DEBUG) ? console.log.bind(console) :
-                                                noop;
+    /* tslint:disable no-parameter-reassignment */
+    function format(...args : unknown[]) {
+      return args.reduce((acc : string, curr : unknown, i) => {
+        if (i > 0) {
+          acc += " ";
+        }
+        if (curr === null) {
+          acc += "null";
+        } else if (curr === undefined) {
+          acc += "undefined";
+        } else if (typeof curr === "object") {
+          let stringified : string;
+          try {
+            stringified = JSON.stringify(curr);
+          } catch (_) {
+            try {
+              stringified = (curr as any).toString();
+            } catch (_) {
+              stringified = "Object";
+            }
+          }
+          if (stringified.length > 300) {
+            acc += stringified.substring(0, 300) + "...";
+          } else {
+            acc += stringified;
+          }
+        } else {
+          acc += curr;
+        }
+        return acc;
+      }, "");
+    }
+
+    this.error = (level >= this.LEVELS.ERROR) ?
+      (...args) => console.error(format(...args)) :
+      noop;
+    this.warn = (level >= this.LEVELS.WARNING) ?
+      (...args) => console.warn(format(...args)) :
+      noop;
+    this.info = (level >= this.LEVELS.INFO) ?
+      (...args) => console.info(format(...args)) :
+      noop;
+    this.debug = (level >= this.LEVELS.DEBUG) ?
+      (...args) => console.debug(format(...args)) :
+      noop;
     /* tslint:enable no-console */
     /* tslint:enable no-invalid-this */
   }
