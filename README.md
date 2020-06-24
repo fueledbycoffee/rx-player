@@ -1,6 +1,6 @@
 ![LOGO](./doc/assets/logo.png)
 
-[__Documentation__](https://canalplus.github.io/rx-player/doc/pages/api/index.html)
+[__API documentation__](https://canalplus.github.io/rx-player/doc/pages/api/index.html)
  \- [__Demo__](https://developers.canal-plus.com/rx-player/)
  \- [__Tutorials__](https://canalplus.github.io/rx-player/doc/pages/tutorials/index.html)
  \- [__Contributing__](./CONTRIBUTING.md)
