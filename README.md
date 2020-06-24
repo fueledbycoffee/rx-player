@@ -1,9 +1,9 @@
 ![LOGO](./doc/assets/logo.png)
 
-[__API documentation__](https://canalplus.github.io/rx-player/doc/pages/api/index.html)
- \- [__Demo__](https://developers.canal-plus.com/rx-player/)
- \- [__Tutorials__](https://canalplus.github.io/rx-player/doc/pages/tutorials/index.html)
- \- [__Contributing__](./CONTRIBUTING.md)
+[📖 __API documentation__](https://canalplus.github.io/rx-player/doc/pages/api/index.html)
+ \- [⏯ __Demo__](https://developers.canal-plus.com/rx-player/)
+ \- [🎓 __Tutorials__](https://canalplus.github.io/rx-player/doc/pages/tutorials/index.html)
+ \- [🔧 __Contributing__](./CONTRIBUTING.md)
  
  [![rx-player latest release](https://img.shields.io/badge/dynamic/json.svg?label=Latest%20release&url=https://api.github.com/repos/canalplus/rx-player/releases/latest&query=$.tag_name&colorB=blue)](https://github.com/canalplus/rx-player/releases)
 [![Build Status](https://travis-ci.org/canalplus/rx-player.svg?branch=master)](https://travis-ci.org/canalplus/rx-player)
