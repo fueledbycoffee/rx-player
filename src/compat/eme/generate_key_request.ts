@@ -18,6 +18,7 @@ import {
   defer as observableDefer,
   Observable,
 } from "rxjs";
+import { catchError } from "rxjs/operators";
 import log from "../../log";
 import {
   be4toi,
@@ -40,7 +41,10 @@ import { ICustomMediaKeySession } from "./custom_media_keys";
  * @param {Uint8Array} initData - Initialization data you want to patch
  * @returns {Uint8Array} - Initialization data, patched
  */
-export function patchInitData(initData : Uint8Array) : Uint8Array {
+export function patchInitData(
+  initData : Uint8Array,
+  removeCenc : boolean
+) : Uint8Array {
   log.info("Compat: Trying to move CENC PSSH from init data at the end of it.");
   let cencs = new Uint8Array();
   let resInitData = new Uint8Array();
@@ -80,7 +84,9 @@ export function patchInitData(initData : Uint8Array) : Uint8Array {
         initData[offset + 27] === 0x4B
     ) {
       log.info("Compat: CENC PSSH found.");
-      cencs = concat(cencs, currentPSSH);
+      if (!removeCenc) {
+        cencs = concat(cencs, currentPSSH);
+      }
     } else {
       resInitData = concat(resInitData, currentPSSH);
     }
@@ -117,15 +123,24 @@ export default function generateKeyRequest(
     let patchedInit : Uint8Array;
     if (isIEOrEdge) {
       try {
-        patchedInit = patchInitData(initData);
+        patchedInit = patchInitData(initData, false);
       } catch (_e) {
         patchedInit = initData;
       }
     } else {
       patchedInit = initData;
     }
-    return castToObservable(session.generateRequest(initDataType == null ? "" :
-                                                                           initDataType,
-                                                    patchedInit));
+    return castToObservable(session.generateRequest(initDataType ?? "", patchedInit))
+      .pipe(catchError((err : unknown) => {
+        const originalError = err;
+        log.warn("Compat: generateRequest triggered an error. Retrying without CENC",
+                 err);
+        const newInitData = patchInitData(initData, true);
+        return castToObservable(session.generateRequest(initDataType ?? "", newInitData))
+          .pipe(catchError(_ => {
+            // The original error is a better indication of what went wrong
+            throw originalError;
+          }));
+      }));
   });
 }
