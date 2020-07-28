@@ -66,7 +66,7 @@ import objectAssign from "../../../utils/object_assign";
 import SimpleSet from "../../../utils/simple_set";
 import {
   IPrioritizedSegmentFetcher,
-  ISegmentFetcherEvent,
+  IPrioritizedSegmentFetcherEvent,
   ISegmentFetcherWarning,
 } from "../../fetchers";
 import { QueuedSourceBuffer } from "../../source_buffers";
@@ -144,7 +144,7 @@ type ISegmentLoadingEvent<T> = IParsedSegmentEvent<T> |
 // Object describing a pending Segment request
 interface ISegmentRequestObject<T> {
   segment : ISegment; // The Segment the request is for
-  request$ : Observable<ISegmentFetcherEvent<T>>; // The request itself
+  request$ : Observable<IPrioritizedSegmentFetcherEvent<T>>; // The request itself
   priority : number; // The current priority of the request
 }
 
@@ -406,25 +406,34 @@ export default function RepresentationBuffer<T>({
         const request$ = segmentFetcher.createRequest(context, priority);
 
         currentSegmentRequest = { segment, priority, request$ };
-        const response$ = request$
+        return request$
           .pipe(mergeMap((evt) : Observable<ISegmentLoadingEvent<T>> => {
-            if (evt.type === "warning") {
-              return observableOf({ type: "retry" as const,
-                                    value: { segment,
-                                             error: evt.value } });
-            } else if (evt.type === "chunk-complete") {
-              currentSegmentRequest = null;
-              return observableOf({ type: "end-of-segment" as const,
-                                    value: { segment } });
+            switch (evt.type) {
+              case "warning":
+                return observableOf({ type: "retry" as const,
+                                      value: { segment, error: evt.value } });
+              case "chunk-complete":
+                currentSegmentRequest = null;
+                return observableOf({ type: "end-of-segment" as const,
+                                      value: { segment } });
+
+              case "interrupted":
+                log.info("Buffer: segment request interrupted temporarly.", segment);
+                return EMPTY;
+
+              case "chunk":
+                const initTimescale = initSegmentObject?.initTimescale;
+                return evt.parse(initTimescale).pipe(map(parserResponse => {
+                  return objectAssign({ segment }, parserResponse);
+                }));
+
+              case "ended":
+                return requestNextSegment$;
+
+              default:
+                assertUnreachable(evt);
             }
-
-            const initTimescale = initSegmentObject?.initTimescale;
-            return evt.parse(initTimescale).pipe(map(parserResponse => {
-              return objectAssign({ segment }, parserResponse);
-            }));
           }));
-
-        return observableConcat(response$, requestNextSegment$);
       });
 
     return requestNextSegment$
