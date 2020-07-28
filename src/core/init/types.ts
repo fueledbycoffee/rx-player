@@ -36,7 +36,8 @@ export interface IInitClockTick { currentTime : number;
                                                  null;
                                   readyState : number;
                                   paused : boolean;
-                                  stalled : { reason : "seeking" |
+                                  stalled : { reason : "freezing" |
+                                                       "seeking" |
                                                        "not-ready" |
                                                        "buffering";
                                               timestamp : number; } |
