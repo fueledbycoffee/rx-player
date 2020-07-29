@@ -64,6 +64,7 @@ import ABRManager, {
   IABRMetric,
   IABRRequest,
 } from "../../abr";
+import { SegmentFetcherCreator } from "../../fetchers";
 import { QueuedSourceBuffer } from "../../source_buffers";
 import EVENTS from "../events_generators";
 import RepresentationBuffer, {
@@ -123,8 +124,7 @@ export interface IAdaptationBufferArguments<T> {
   /** SourceBuffer wrapper - needed to push media segments. */
   queuedSourceBuffer : QueuedSourceBuffer<T>;
   /** Module used to fetch the wanted media segments. */
-  // XXX TODO
-  segmentFetcherCreator : any;
+  segmentFetcherCreator : SegmentFetcherCreator;
   /**
    * "Buffer goal" wanted, or the ideal amount of time ahead of the current
    * position in the current SourceBuffer. When this amount has been reached
@@ -284,11 +284,11 @@ export default function AdaptationBuffer<T>({
     representation : Representation
   ) : Observable<IRepresentationBufferEvent<T>> {
     return observableDefer(() => {
-      const segmentQueue = segmentFetcherCreator.createSegmentQueue({ manifest,
-                                                                      period,
-                                                                      adaptation,
-                                                                      representation },
-                                                                      requestsEvents$);
+      const segmentQueue = segmentFetcherCreator.createSegmentQueue<T>({ manifest,
+                                                                         period,
+                                                                         adaptation,
+                                                                         representation },
+                                                                         requestsEvents$);
 
       const oldBufferGoalRatio = bufferGoalRatioMap[representation.id];
       const bufferGoalRatio = oldBufferGoalRatio != null ? oldBufferGoalRatio :

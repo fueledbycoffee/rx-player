@@ -204,10 +204,10 @@ export default function InitializeOnMediaSource(
         share()));
 
   /** Interface used to download segments. */
-  const segmentFetcherCreator = SegmentFetcherCreator(transportPipelines,
-                                                      { lowLatencyMode,
-                                                        maxRetryOffline: offlineRetry,
-                                                        maxRetryRegular: segmentRetry });
+  const segmentFetcherCreator =
+    new SegmentFetcherCreator(transportPipelines, { lowLatencyMode,
+                                                    maxRetryOffline: offlineRetry,
+                                                    maxRetryRegular: segmentRetry });
 
   /** Choose the right "Representation" for a given "Adaptation". */
   const abrManager = new ABRManager(adaptiveOptions);

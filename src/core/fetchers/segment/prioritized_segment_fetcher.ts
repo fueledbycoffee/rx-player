@@ -89,6 +89,7 @@ export default function applyPrioritizerToSegmentFetcher<T>(
       content : any,
       priority : number = 0
     ) : Observable<IPrioritizedSegmentFetcherEvent<T>> {
+      debugger;
       const task = prioritizer.create(fetcher(content), priority);
       const flattenTask = task.pipe(
         map((evt) => {

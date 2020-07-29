@@ -20,15 +20,12 @@ import createManifestFetcher, {
   IManifestFetcherWarningEvent,
 } from "./manifest";
 import SegmentFetcherCreator, {
-  IPrioritizedSegmentFetcher,
-  IPrioritizedSegmentFetcherEvent,
   ISegmentFetcherChunkCompleteEvent,
   ISegmentFetcherChunkEvent,
   ISegmentFetcherEvent,
   ISegmentFetcherWarning,
   ISegmentQueue,
   ISegmentQueueEvent,
-  ISegmentsFetcherBackoffOptions,
 } from "./segment";
 
 export {
@@ -39,12 +36,7 @@ export {
   IManifestFetcherParsedResult,
   IManifestFetcherWarningEvent,
 
-  IPrioritizedSegmentFetcher,
-  IPrioritizedSegmentFetcherEvent,
-
   ISegmentFetcherEvent,
-
-  ISegmentsFetcherBackoffOptions,
 
   ISegmentFetcherChunkEvent,
   ISegmentFetcherChunkCompleteEvent,

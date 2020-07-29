@@ -43,6 +43,7 @@ import objectAssign from "../../../utils/object_assign";
 import { getLeftSizeOfRange } from "../../../utils/ranges";
 import WeakMapMemory from "../../../utils/weak_map_memory";
 import ABRManager from "../../abr";
+import { SegmentFetcherCreator } from "../../fetchers";
 import SourceBuffersStore, {
   IBufferType,
   ITextTrackSourceBufferOptions,
@@ -78,8 +79,7 @@ export interface IPeriodBufferArguments {
   content : { manifest : Manifest;
               period : Period; };
   garbageCollectors : WeakMapMemory<QueuedSourceBuffer<unknown>, Observable<never>>;
-  // XXX TODO
-  segmentFetcherCreator : any;
+  segmentFetcherCreator : SegmentFetcherCreator;
   sourceBuffersStore : SourceBuffersStore;
   options: { manualBitrateSwitchingMode : "seamless" | "direct";
              textTrackOptions? : ITextTrackSourceBufferOptions; };
