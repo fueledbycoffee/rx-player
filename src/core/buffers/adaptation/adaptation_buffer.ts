@@ -64,7 +64,6 @@ import ABRManager, {
   IABRMetric,
   IABRRequest,
 } from "../../abr";
-import { SegmentFetcherCreator } from "../../fetchers";
 import { QueuedSourceBuffer } from "../../source_buffers";
 import EVENTS from "../events_generators";
 import RepresentationBuffer, {
@@ -124,7 +123,8 @@ export interface IAdaptationBufferArguments<T> {
   /** SourceBuffer wrapper - needed to push media segments. */
   queuedSourceBuffer : QueuedSourceBuffer<T>;
   /** Module used to fetch the wanted media segments. */
-  segmentFetcherCreator : SegmentFetcherCreator<any>;
+  // XXX TODO
+  segmentFetcherCreator : any;
   /**
    * "Buffer goal" wanted, or the ideal amount of time ahead of the current
    * position in the current SourceBuffer. When this amount has been reached
@@ -198,9 +198,6 @@ export default function AdaptationBuffer<T>({
                                                           clock$,
                                                           abrEvents$)
       .pipe(deferSubscriptions(), share());
-
-  const segmentFetcher = segmentFetcherCreator.createSegmentFetcher(adaptation.type,
-                                                                    requestsEvents$);
 
   // Bitrate higher or equal to this value should not be replaced by segments of
   // better quality.
@@ -287,6 +284,12 @@ export default function AdaptationBuffer<T>({
     representation : Representation
   ) : Observable<IRepresentationBufferEvent<T>> {
     return observableDefer(() => {
+      const segmentQueue = segmentFetcherCreator.createSegmentQueue({ manifest,
+                                                                      period,
+                                                                      adaptation,
+                                                                      representation },
+                                                                      requestsEvents$);
+
       const oldBufferGoalRatio = bufferGoalRatioMap[representation.id];
       const bufferGoalRatio = oldBufferGoalRatio != null ? oldBufferGoalRatio :
                                                            1;
@@ -303,7 +306,7 @@ export default function AdaptationBuffer<T>({
                                                period,
                                                manifest },
                                     queuedSourceBuffer,
-                                    segmentFetcher,
+                                    segmentQueue,
                                     terminate$: terminateCurrentBuffer$,
                                     bufferGoal$,
                                     knownStableBitrate$ })

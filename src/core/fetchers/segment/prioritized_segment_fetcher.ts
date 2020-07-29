@@ -86,7 +86,7 @@ export default function applyPrioritizerToSegmentFetcher<T>(
      * @returns {Observable}
      */
     createRequest(
-      content : ISegmentLoaderContent,
+      content : any,
       priority : number = 0
     ) : Observable<IPrioritizedSegmentFetcherEvent<T>> {
       const task = prioritizer.create(fetcher(content), priority);

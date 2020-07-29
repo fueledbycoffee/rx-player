@@ -38,7 +38,6 @@ import ABRManager from "../abr";
 import BufferOrchestrator, {
   IBufferOrchestratorEvent,
 } from "../buffers";
-import { SegmentFetcherCreator } from "../fetchers";
 import SourceBuffersStore, {
   ITextTrackSourceBufferOptions,
 } from "../source_buffers";
@@ -78,7 +77,8 @@ export interface IMediaSourceLoaderArguments {
   manifest : Manifest; // Manifest of the content we want to play
   mediaElement : HTMLMediaElement; // Media Element on which the content will be
                                    // played
-  segmentFetcherCreator : SegmentFetcherCreator<any>; // Interface to download
+  // XXX TODO
+  segmentFetcherCreator : any; // Interface to download
                                                         // segments
   speed$ : Observable<number>; // Emit the speed.
                                // /!\ Should replay the last value on subscription.

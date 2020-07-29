@@ -25,11 +25,15 @@ import {
   filter,
   finalize,
   mergeMap,
-  share,
   tap,
 } from "rxjs/operators";
 import { formatError } from "../../../errors";
-import { ISegment } from "../../../manifest";
+import Manifest, {
+  Adaptation,
+  ISegment,
+  Period,
+  Representation,
+} from "../../../manifest";
 import {
   ISegmentParserResponse,
   ITransportPipelines,
@@ -37,16 +41,15 @@ import {
 import arrayIncludes from "../../../utils/array_includes";
 import idGenerator from "../../../utils/id_generator";
 import InitializationSegmentCache from "../../../utils/initialization_segment_cache";
+import objectAssign from "../../../utils/object_assign";
 import {
   IABRMetric,
   IABRRequest,
 } from "../../abr";
-import { IBufferType } from "../../source_buffers";
 import { IBackoffOptions } from "../utils/try_urls_with_backoff";
 import createSegmentLoader, {
   ISegmentLoaderChunk,
   ISegmentLoaderChunkComplete,
-  ISegmentLoaderContent,
   ISegmentLoaderData,
   ISegmentLoaderWarning,
 } from "./create_segment_loader";
@@ -63,8 +66,10 @@ export type ISegmentFetcherWarning = ISegmentLoaderWarning;
  */
 export interface ISegmentFetcherChunkEvent<T> {
   type : "chunk";
-  /** Parse the downloaded chunk. */
-  parse : (initTimescale? : number) => Observable<ISegmentParserResponse<T>>;
+  value : {
+    /** Parse the downloaded chunk. */
+    parse : (initTimescale? : number) => Observable<ISegmentParserResponse<T>>;
+  };
 }
 
 /**
@@ -78,25 +83,35 @@ export type ISegmentFetcherEvent<T> = ISegmentFetcherChunkCompleteEvent |
                                       ISegmentFetcherChunkEvent<T> |
                                       ISegmentFetcherWarning;
 
-export type ISegmentFetcher<T> = (content : ISegmentLoaderContent) =>
+export type ISegmentFetcher<T> = (segment : ISegment) =>
                                    Observable<ISegmentFetcherEvent<T>>;
 
 const generateRequestID = idGenerator();
 
+// XXX TODO
+/** Options needed to create a SegmentQueue. */
+export interface ISegmentFetcherContext {
+  manifest : Manifest;
+  period : Period;
+  adaptation : Adaptation;
+  representation : Representation;
+}
+
 /**
  * Create a function which will fetch and parse segments.
- * @param {string} bufferType
+ * @param {Object} context
  * @param {Object} transport
  * @param {Subject} requests$
  * @param {Object} options
  * @returns {Function}
  */
 export default function createSegmentFetcher<T>(
-  bufferType : IBufferType,
+  context : ISegmentFetcherContext,
   transport : ITransportPipelines,
   requests$ : Subject<IABRMetric | IABRRequest>,
   options : IBackoffOptions
 ) : ISegmentFetcher<T> {
+  const bufferType = context.adaptation.type;
   const cache = arrayIncludes(["audio", "video"], bufferType) ?
     new InitializationSegmentCache<any>() :
     undefined;
@@ -106,17 +121,14 @@ export default function createSegmentFetcher<T>(
   const segmentParser = transport[bufferType].parser as any; // deal with it
 
   /**
-   * Process the segmentLoader observable to adapt it to the the rest of the
-   * code:
-   *   - use the requests subject for network requests and their progress
-   *   - use the warning$ subject for retries' error messages
-   *   - only emit the data
-   * @param {Object} content
+   * Fetch a single segment.
+   * @param {Object} segment
    * @returns {Observable}
    */
   return function fetchSegment(
-    content : ISegmentLoaderContent
+    segment : ISegment
   ) : Observable<ISegmentFetcherEvent<T>> {
+    const content = objectAssign({ segment }, context);
     const id = generateRequestID();
     let requestBeginSent = false;
     return segmentLoader(content).pipe(
@@ -135,10 +147,7 @@ export default function createSegmentFetcher<T>(
           }
 
           case "request": {
-            const { value } = arg;
-
             // format it for ABR Handling
-            const segment : ISegment|undefined = value.segment;
             if (segment == null || segment.duration == null) {
               return;
             }
@@ -187,6 +196,7 @@ export default function createSegmentFetcher<T>(
                               return false;
                           }
                         }),
+
       mergeMap((evt) => {
         if (evt.type === "warning") {
           return observableOf(evt);
@@ -196,32 +206,30 @@ export default function createSegmentFetcher<T>(
         }
 
         const isChunked = evt.type === "chunk";
-        const data = {
-          type: "chunk" as const,
-          /**
-           * Parse the loaded data.
-           * @param {Object} [initTimescale]
-           * @returns {Observable}
-           */
-          parse(initTimescale? : number) : Observable<ISegmentParserResponse<T>> {
-            const response = { data: evt.value.responseData, isChunked };
-            /* tslint:disable no-unsafe-any */
-            return segmentParser({ response, initTimescale, content })
-            /* tslint:enable no-unsafe-any */
-              .pipe(catchError((error: unknown) => {
-                throw formatError(error, { defaultCode: "PIPELINE_PARSE_ERROR",
-                                           defaultReason: "Unknown parsing error" });
-              }));
-          },
-        };
+        const { responseData } = evt.value;
 
-        if (isChunked) {
-          return observableOf(data);
+        /**
+         * Parse the loaded data.
+         * @param {Object} [initTimescale]
+         * @returns {Observable}
+         */
+        function parse(initTimescale? : number) : Observable<ISegmentParserResponse<T>> {
+          const response = { data: responseData, isChunked };
+          /* tslint:disable no-unsafe-any */
+          return segmentParser({ response, initTimescale, content })
+          /* tslint:enable no-unsafe-any */
+          .pipe(catchError((error: unknown) => {
+            throw formatError(error, { defaultCode: "PIPELINE_PARSE_ERROR",
+                                       defaultReason: "Unknown parsing error" });
+          }));
         }
-        return observableConcat(observableOf(data),
-                                observableOf({ type: "chunk-complete" as const }));
-      }),
-      share() // avoid multiple side effects if multiple subs
-    );
+
+        const data = { type: "chunk" as const, value: { parse } };
+
+        return isChunked ?
+          observableOf(data) :
+          observableConcat(observableOf(data),
+                           observableOf({ type: "chunk-complete" as const }));
+      }));
   };
 }

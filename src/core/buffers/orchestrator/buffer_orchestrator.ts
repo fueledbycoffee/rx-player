@@ -47,7 +47,6 @@ import filterMap from "../../../utils/filter_map";
 import SortedList from "../../../utils/sorted_list";
 import WeakMapMemory from "../../../utils/weak_map_memory";
 import ABRManager from "../../abr";
-import { SegmentFetcherCreator } from "../../fetchers";
 import SourceBuffersStore, {
   BufferGarbageCollector,
   IBufferType,
@@ -109,7 +108,8 @@ export default function BufferOrchestrator(
   clock$ : Observable<IBufferOrchestratorClockTick>,
   abrManager : ABRManager,
   sourceBuffersStore : SourceBuffersStore,
-  segmentFetcherCreator : SegmentFetcherCreator<any>,
+  // XXX TODO
+  segmentFetcherCreator : any,
   options: { wantedBufferAhead$ : BehaviorSubject<number>;
              maxBufferAhead$ : Observable<number>;
              maxBufferBehind$ : Observable<number>;

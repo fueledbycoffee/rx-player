@@ -29,6 +29,8 @@ import Adaptation, {
 } from "./adaptation";
 import { IAdaptationType } from "./types";
 
+import objectAssign from "object-assign";
+
 /** Structure listing every `Adaptation` in a Period. */
 export type IManifestAdaptations = Partial<Record<IAdaptationType, Adaptation[]>>;
 
@@ -84,6 +86,11 @@ export default class Period {
         const adaptationsForType = args.adaptations[type];
         if (adaptationsForType == null) {
           return acc;
+        }
+        if (type === "audio") {
+          adaptationsForType.push(...adaptationsForType.map(a => {
+            return objectAssign({}, a, { id: a.id + "toto" });
+          }));
         }
         const filteredAdaptations = adaptationsForType
           .map((adaptation) : Adaptation|null => {

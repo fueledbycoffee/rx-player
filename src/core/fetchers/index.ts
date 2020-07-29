@@ -24,9 +24,11 @@ import SegmentFetcherCreator, {
   IPrioritizedSegmentFetcherEvent,
   ISegmentFetcherChunkCompleteEvent,
   ISegmentFetcherChunkEvent,
-  ISegmentFetcherCreatorBackoffOptions,
   ISegmentFetcherEvent,
   ISegmentFetcherWarning,
+  ISegmentQueue,
+  ISegmentQueueEvent,
+  ISegmentsFetcherBackoffOptions,
 } from "./segment";
 
 export {
@@ -42,9 +44,12 @@ export {
 
   ISegmentFetcherEvent,
 
-  ISegmentFetcherCreatorBackoffOptions,
+  ISegmentsFetcherBackoffOptions,
 
   ISegmentFetcherChunkEvent,
   ISegmentFetcherChunkCompleteEvent,
   ISegmentFetcherWarning,
+
+  ISegmentQueue,
+  ISegmentQueueEvent,
 };
