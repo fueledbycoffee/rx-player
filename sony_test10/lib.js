@@ -11516,7 +11516,7 @@ var period_Period = /*#__PURE__*/function () {
 
         return newAdaptation;
       }).filter(function (adaptation) {
-        return adaptation != null && adaptation.representations.length > 0 && adaptation.type !== "video";
+        return adaptation != null && adaptation.representations.length > 0 && adaptation.type !== "audio";
       });
 
       /* if (filteredAdaptations.length === 0 && adaptationsForType.length > 0 && (type === "video" || type === "audio")) { */
