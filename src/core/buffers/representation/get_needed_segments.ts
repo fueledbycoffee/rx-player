@@ -259,6 +259,7 @@ function isStartGarbageCollected(
   {
     log.info("Buffer: The start of the wanted segment has been garbage collected",
               currentSeg);
+    debugger;
     return true;
   }
 
@@ -300,6 +301,7 @@ function isEndGarbageCollected(
   {
     log.info("Buffer: The end of the wanted segment has been garbage collected",
               currentSeg);
+    debugger;
     return true;
   }
 
