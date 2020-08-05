@@ -26,7 +26,6 @@
 // import objectAssign from "object-assign";
 import shouldAppendBufferAfterPadding from "../../../compat/should_append_buffer_after_padding";
 import config from "../../../config";
-import log from "../../../log";
 import Manifest, {
   Adaptation,
   // areSameContent,
@@ -241,9 +240,9 @@ function isStartGarbageCollected(
   maximumStartTime : number
 ) {
   if (currentSeg.bufferedStart === undefined)  {
-    log.warn("Buffer: Start of a segment unknown. " +
-             "Assuming it is garbage collected by default.",
-             currentSeg);
+    console.error("Buffer: Start of a segment unknown. " +
+                 "Assuming it is garbage collected by default.",
+                 currentSeg);
     return true;
   }
 
@@ -257,9 +256,8 @@ function isStartGarbageCollected(
       currentSeg.bufferedStart - currentSeg.start >
         MAX_TIME_MISSING_FROM_COMPLETE_SEGMENT)
   {
-    log.info("Buffer: The start of the wanted segment has been garbage collected",
-              currentSeg);
-    debugger;
+    console.error("Buffer: The start of the wanted segment has been garbage collected",
+                 currentSeg);
     return true;
   }
 
@@ -284,7 +282,7 @@ function isEndGarbageCollected(
   minimumEndTime : number
 ) {
   if (currentSeg.bufferedEnd === undefined)  {
-    log.warn("Buffer: End of a segment unknown. " +
+    console.error("Buffer: End of a segment unknown. " +
              "Assuming it is garbage collected by default.",
              currentSeg);
     return true;
@@ -299,9 +297,8 @@ function isEndGarbageCollected(
   if (minimumEndTime > currentSeg.bufferedEnd &&
       currentSeg.end - currentSeg.bufferedEnd > MAX_TIME_MISSING_FROM_COMPLETE_SEGMENT)
   {
-    log.info("Buffer: The end of the wanted segment has been garbage collected",
+    console.error("Buffer: The end of the wanted segment has been garbage collected",
               currentSeg);
-    debugger;
     return true;
   }
 

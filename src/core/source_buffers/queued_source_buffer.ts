@@ -45,6 +45,8 @@ import SegmentInventory, {
   IInsertedChunkInfos,
 } from "./segment_inventory";
 
+import arrayFindIndex from "../../utils/array_find_index";
+
 const { APPEND_WINDOW_SECURITIES,
         SOURCE_BUFFER_FLUSHING_INTERVAL, } = config;
 
@@ -356,7 +358,7 @@ export default class QueuedSourceBuffer<T> {
    * initSegment argument given share the same reference.
    *
    * You can disable the usage of initialization segment by setting the
-   * `infos.data.initSegment` argument to null.
+   * `infos.data.initSegment` a number/steprgument to null.
    *
    * You can also only push an initialization segment by setting the
    * `infos.data.chunk` argument to null.
@@ -365,11 +367,90 @@ export default class QueuedSourceBuffer<T> {
    * @returns {Observable}
    */
   public pushChunk(infos : IPushChunkInfos<T>) : Observable<void> {
+
+    // ===================================
+
+    const before = () => {
+      this.synchronizeInventory();
+      const { period, segment } = infos.inventoryInfos;
+      if (segment.isInit) {
+        return;
+      }
+      const segmentStart = segment.time / segment.timescale;
+      if (segmentStart > period.start + 5) {
+        return;
+      }
+      const inventory = this._segmentInventory.getInventory();
+      let idx = arrayFindIndex(inventory, seg => {
+        return seg.infos.period.start >= period.start &&
+               seg.infos.segment.time / seg.infos.segment.time >=
+               segment.time;
+      });
+      if (idx < 0) {
+        if (inventory.length) {
+          idx = inventory.length;
+        }
+        return;
+      }
+      const firstIdxToInspect = Math.max(0, idx - 2);
+      const segmentsToInspect = inventory.slice(firstIdxToInspect, idx);
+      console.error("BEFORE:");
+      logFor(segmentsToInspect);
+    };
+    const after = () => {
+      this.synchronizeInventory();
+      const { period, segment } = infos.inventoryInfos;
+      if (segment.isInit) {
+        return;
+      }
+      const segmentStart = segment.time / segment.timescale;
+      if (segmentStart > period.start + 5) {
+        return;
+      }
+      const inventory = this._segmentInventory.getInventory();
+      const idx = arrayFindIndex(inventory, seg => {
+        return seg.infos.period.start === period.start &&
+          seg.infos.segment.time === segment.time;
+      });
+      if (idx < 0) {
+        return;
+      }
+      const firstIdxToInspect = Math.max(0, idx - 2);
+      const segmentsToInspect = inventory.slice(firstIdxToInspect, idx);
+      console.error("AFTER:");
+      logFor(segmentsToInspect);
+    };
+
+    // ===================================
+
     log.debug("QSB: receiving order to push data to the SourceBuffer",
               this.bufferType,
               infos);
+    before();
     return this._addToQueue({ type: SourceBufferAction.Push,
-                              value: infos });
+                              value: infos })
+    .pipe(tap(() => { after(); }));
+
+    function logFor(segmentsToInspect : IBufferedChunk[]) {
+      const nextPeriod = infos.inventoryInfos.period;
+      for (let i = 0; i < segmentsToInspect.length; i++) {
+        const elt = segmentsToInspect[i];
+        if (!elt.partiallyPushed) {
+          console.error(`i: ${i}
+segmentStart:${elt.start}
+segmentDur:${elt.end - elt.start}
+beforePeriod:${nextPeriod.start - elt.end}
+periodDiff:${(elt.infos.period.end ?? 0) - nextPeriod.start}
+periodDur/periodEnd:${elt.infos.period.duration}, ${(elt.infos.period.end ?? 0)
+                                                     - elt.infos.period.start}
+diffStart: ${(elt.bufferedStart ?? 0) - elt.start}
+precizeStart: ${elt.precizeStart}
+diffEnd: ${(elt.bufferedEnd ?? 0) - elt.end}
+precizeEnd: ${elt.precizeEnd}`);
+        }
+      }
+
+    }
   }
 
   /**
