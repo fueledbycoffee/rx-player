@@ -212,7 +212,7 @@ export default function createMediaSourceLoader({
         } else {
           const discontinuity = getDiscontinuities(clockTick, manifest);
           if (discontinuity !== undefined) {
-            seekTo = discontinuity[1];
+            seekTo = discontinuity;
           }
         }
         if (seekTo !== undefined &&

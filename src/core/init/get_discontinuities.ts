@@ -27,12 +27,12 @@ const { BUFFER_DISCONTINUITY_THRESHOLD } = config;
  * Perform various checks about discontinuities during playback.
  * @param {Object} tick
  * @param {Object} manifest
- * @returns {Array | undefined}
+ * @returns {Number | undefined}
  */
 export default function getDiscontinuities(
   tick: IInitClockTick,
   manifest: Manifest
-) : [ number, number ] | undefined {
+) : number | undefined {
   const { buffered, currentTime, currentRange, state, stalled } = tick;
   const nextBufferRangeGap = getNextRangeGap(buffered, currentTime);
   // 1: Is it a browser bug? -> force seek at the same current time
@@ -42,7 +42,7 @@ export default function getDiscontinuities(
                       stalled !== null)
   ) {
     log.warn("Init: After freeze seek", currentTime, currentRange);
-    return [currentTime, currentTime];
+    return currentTime;
 
   // 2. Is it a short discontinuity in buffer ? -> Seek at the beginning of the
   //                                               next range
@@ -53,7 +53,7 @@ export default function getDiscontinuities(
   // case of small discontinuity in the content.
   } else if (nextBufferRangeGap < BUFFER_DISCONTINUITY_THRESHOLD) {
     const seekTo = (currentTime + nextBufferRangeGap + 1 / 60);
-    return [currentTime, seekTo];
+    return seekTo;
   }
 
   // 3. Is it a discontinuity between periods ? -> Seek at the beginning of the
@@ -67,7 +67,7 @@ export default function getDiscontinuities(
         currentTime > (currentPeriod.end - 1) &&
         currentTime <= nextPeriod.start &&
         nextPeriod.start - currentPeriod.end === 0) {
-      return [currentPeriod.end, nextPeriod.start];
+      return nextPeriod.start;
     }
   }
 }
