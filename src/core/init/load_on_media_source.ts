@@ -46,7 +46,7 @@ import createBufferClock from "./create_buffer_clock";
 import { setDurationToMediaSource } from "./create_media_source";
 import { maintainEndOfStream } from "./end_of_stream";
 import EVENTS from "./events_generators";
-import getDiscontinuities from "./get_discontinuities";
+import getDiscontinuity from "./get_discontinuity";
 import getStalledEvents from "./get_stalled_events";
 import seekAndLoadOnMediaEvents from "./initial_seek_and_play";
 import streamEventsEmitter, {
@@ -204,21 +204,18 @@ export default function createMediaSourceLoader({
     const stalled$ = getStalledEvents(clock$)
       .pipe(map(EVENTS.stalled));
 
-    const handledSeeks$ = clock$.pipe(
+    const internalSeek$ = clock$.pipe(
       tap((clockTick) => {
-        let seekTo;
-        if (clockTick.stalled?.reason === "freezing") {
-          seekTo = clockTick.currentTime + 0.001;
+        if (clockTick.stalled !== null &&
+            clockTick.stalled.reason === "freezing" &&
+            performance.now() - clockTick.stalled.timestamp > 1000) {
+          mediaElement.currentTime = clockTick.currentTime + 0.001;
         } else {
-          const discontinuity = getDiscontinuities(clockTick, manifest);
+          const discontinuity = getDiscontinuity(clockTick, manifest);
           if (discontinuity !== undefined) {
-            seekTo = discontinuity;
+            log.warn("Init: discontinuity seek", mediaElement.currentTime, discontinuity);
+            mediaElement.currentTime = discontinuity;
           }
-        }
-        if (seekTo !== undefined &&
-            seekTo >= mediaElement.currentTime) {
-          log.warn("Init: discontinuity seek", mediaElement.currentTime, seekTo);
-          mediaElement.currentTime = seekTo;
         }
       }),
       ignoreElements()
@@ -242,7 +239,7 @@ export default function createMediaSourceLoader({
         return observableOf(EVENTS.loaded(sourceBuffersStore));
       }));
 
-    return observableMerge(handledSeeks$,
+    return observableMerge(internalSeek$,
                            loadedEvent$,
                            playbackRate$,
                            stalled$,
