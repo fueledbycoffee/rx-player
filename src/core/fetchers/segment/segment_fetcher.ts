@@ -88,8 +88,7 @@ export type ISegmentFetcher<T> = (segment : ISegment) =>
 
 const generateRequestID = idGenerator();
 
-// XXX TODO
-/** Options needed to create a SegmentQueue. */
+/** Context of the segments you will want to download. */
 export interface ISegmentFetcherContext {
   manifest : Manifest;
   period : Period;

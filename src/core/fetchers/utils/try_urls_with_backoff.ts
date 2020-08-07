@@ -67,6 +67,10 @@ function isOfflineRequestError(error : RequestError) : boolean {
          isOffline();
 }
 
+/**
+ * Options used when calling one of the functions using an exponential backoff
+ * algorithm when retrying a task.
+ */
 export interface IBackoffOptions { baseDelay : number;
                                    maxDelay : number;
                                    maxRetryRegular : number;

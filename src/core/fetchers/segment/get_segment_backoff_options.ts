@@ -22,7 +22,15 @@ const { DEFAULT_MAX_REQUESTS_RETRY_ON_ERROR,
         INITIAL_BACKOFF_DELAY_BASE,
         MAX_BACKOFF_DELAY_BASE } = config;
 
+export interface IBackoffBaseOptions {
+  maxRetryRegular? : number;
+  maxRetryOffline? : number;
+  lowLatencyMode : boolean;
+}
+
 /**
+ * Construct the right backoff options based on the default and given
+ * configuration.
  * @param {string} bufferType
  * @param {Object}
  * @returns {Object}
@@ -31,9 +39,7 @@ export default function getSegmentBackoffOptions(
   bufferType : string,
   { maxRetryRegular,
     maxRetryOffline,
-    lowLatencyMode } : { maxRetryRegular? : number;
-                         maxRetryOffline? : number;
-                         lowLatencyMode : boolean; }
+    lowLatencyMode } : IBackoffBaseOptions
 ) : IBackoffOptions {
   return { maxRetryRegular: bufferType === "image" ? 0 :
                             maxRetryRegular ?? DEFAULT_MAX_REQUESTS_RETRY_ON_ERROR,

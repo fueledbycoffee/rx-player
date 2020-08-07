@@ -19,29 +19,37 @@ import createManifestFetcher, {
   IManifestFetcherParserOptions,
   IManifestFetcherWarningEvent,
 } from "./manifest";
-import SegmentFetcherCreator, {
-  ISegmentFetcherChunkCompleteEvent,
-  ISegmentFetcherChunkEvent,
-  ISegmentFetcherEvent,
-  ISegmentFetcherWarning,
+import SegmentRequestScheduler, {
   ISegmentQueue,
+  ISegmentQueueChunkCompleteEvent,
+  ISegmentQueueChunkEvent,
+  ISegmentQueueEmptyEvent,
   ISegmentQueueEvent,
+  ISegmentQueueInterruptedEvent,
+  ISegmentQueueItem,
+  ISegmentQueueRetryEvent,
+  ISegmentRequestSchedulerOptions,
 } from "./segment";
 
 export {
   createManifestFetcher,
-  SegmentFetcherCreator,
+  SegmentRequestScheduler,
 
   IManifestFetcherParserOptions,
   IManifestFetcherParsedResult,
   IManifestFetcherWarningEvent,
 
-  ISegmentFetcherEvent,
-
-  ISegmentFetcherChunkEvent,
-  ISegmentFetcherChunkCompleteEvent,
-  ISegmentFetcherWarning,
+  ISegmentRequestSchedulerOptions,
 
   ISegmentQueue,
+
+  ISegmentQueueItem,
+
   ISegmentQueueEvent,
+
+  ISegmentQueueChunkCompleteEvent,
+  ISegmentQueueChunkEvent,
+  ISegmentQueueEmptyEvent,
+  ISegmentQueueInterruptedEvent,
+  ISegmentQueueRetryEvent,
 };

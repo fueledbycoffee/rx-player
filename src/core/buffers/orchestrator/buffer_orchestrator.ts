@@ -47,7 +47,7 @@ import filterMap from "../../../utils/filter_map";
 import SortedList from "../../../utils/sorted_list";
 import WeakMapMemory from "../../../utils/weak_map_memory";
 import ABRManager from "../../abr";
-import { SegmentFetcherCreator } from "../../fetchers";
+import { SegmentRequestScheduler } from "../../fetchers";
 import SourceBuffersStore, {
   BufferGarbageCollector,
   IBufferType,
@@ -96,7 +96,7 @@ const { MAXIMUM_MAX_BUFFER_AHEAD,
  * to play.
  * @param {Object} sourceBuffersStore - Will be used to lazily create
  * SourceBuffer instances associated with the current content.
- * @param {Object} segmentFetcherCreator - Allow to download segments.
+ * @param {Object} segmentRequestScheduler - Allow to download segments.
  * @param {Object} options
  * @returns {Observable}
  *
@@ -109,7 +109,7 @@ export default function BufferOrchestrator(
   clock$ : Observable<IBufferOrchestratorClockTick>,
   abrManager : ABRManager,
   sourceBuffersStore : SourceBuffersStore,
-  segmentFetcherCreator : SegmentFetcherCreator,
+  segmentRequestScheduler : SegmentRequestScheduler,
   options: { wantedBufferAhead$ : BehaviorSubject<number>;
              maxBufferAhead$ : Observable<number>;
              maxBufferBehind$ : Observable<number>;
@@ -406,7 +406,7 @@ export default function BufferOrchestrator(
                                          clock$,
                                          content: { manifest, period: basePeriod },
                                          garbageCollectors,
-                                         segmentFetcherCreator,
+                                         segmentRequestScheduler,
                                          sourceBuffersStore,
                                          options,
                                          wantedBufferAhead$, }

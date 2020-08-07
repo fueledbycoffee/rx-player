@@ -36,10 +36,8 @@ import {
 import {
   finalize,
   ignoreElements,
-  map,
   mapTo,
   mergeMap,
-  share,
   startWith,
   take,
   takeUntil,
@@ -52,7 +50,10 @@ import Manifest, {
   Period,
   Representation,
 } from "../../../manifest";
-import { ISegmentParserParsedInitSegment, ISegmentParserResponse } from "../../../transports";
+import {
+  ISegmentParserParsedInitSegment,
+  ISegmentParserResponse,
+} from "../../../transports";
 import assertUnreachable from "../../../utils/assert_unreachable";
 import objectAssign from "../../../utils/object_assign";
 import SimpleSet from "../../../utils/simple_set";
@@ -78,10 +79,7 @@ import getWantedRange from "./get_wanted_range";
 import pushInitSegment from "./push_init_segment";
 import pushMediaSegment from "./push_media_segment";
 
-// XXX TODO
-import { ISegmentQueueItem } from "../../fetchers/segment/segment_fetcher_creator";
-
-// Item emitted by the Buffer's clock$
+/** Item emitted by the Buffer's clock$. */
 export interface IRepresentationBufferClockTick {
   /** The current position of the video element, in seconds. */
   currentTime : number;
@@ -166,6 +164,9 @@ export default function RepresentationBuffer<T>({
    */
   const loadedSegmentPendingPush = new SimpleSet();
 
+  /** Kill the RepresentationBuffer after the termination process ends. */
+  const destroy$ = new Subject<void>();
+
   const status$ = observableCombineLatest([
     clock$,
     bufferGoal$,
@@ -176,27 +177,16 @@ export default function RepresentationBuffer<T>({
   ).pipe(
     takeUntil(stopStatusCheck$),
     withLatestFrom(knownStableBitrate$),
-    map(function getCurrentStatus(
+    mergeMap(function getCurrentStatus(
       [ [ timing, bufferGoal, terminate ],
         knownStableBitrate ]
-    ) : { discontinuity : number;
-          isFull : boolean;
-          terminate : boolean;
-          neededSegments : ISegmentQueueItem[];
-          shouldRefreshManifest : boolean; }
+    ) : Observable<IBufferNeededActions |
+                   IBufferStateFull |
+                   IBufferStateActive>
     {
       queuedSourceBuffer.synchronizeInventory();
-      const neededRange = getWantedRange(period, timing, bufferGoal);
-
-      const discontinuity = timing.stalled !== null ?
-        representation.index.checkDiscontinuity(timing.currentTime) :
-        -1;
-
-      const shouldRefreshManifest =
-        representation.index.shouldRefresh(neededRange.start,
-                                           neededRange.end);
-
       const segmentInventory = queuedSourceBuffer.getInventory();
+      const neededRange = getWantedRange(period, timing, bufferGoal);
       let neededSegments = getNeededSegments({ content,
                                                currentPlaybackTime: timing.currentTime,
                                                knownStableBitrate,
@@ -214,6 +204,14 @@ export default function RepresentationBuffer<T>({
         neededSegments = [ { segment: initSegment,
                              priority: initSegmentPriority },
                            ...neededSegments ];
+      }
+
+      segmentQueue.update(neededSegments);
+
+      // XXX TODO
+      if (terminate) {
+        destroy$.next();
+        return EMPTY;
       }
 
       let isFull : boolean; // True if the current buffer is full and the one
@@ -247,41 +245,26 @@ export default function RepresentationBuffer<T>({
         }
       }
 
-      return { discontinuity,
-               isFull,
-               terminate,
-               neededSegments,
-               shouldRefreshManifest };
-    }),
-
-    mergeMap(function handleStatus(status) : Observable<IBufferNeededActions |
-                                                        IBufferStateFull |
-                                                        IBufferStateActive> {
-      const { neededSegments } = status;
-
-      if (status.terminate) {
-        segmentQueue.terminate(neededSegments);
-        stopStatusCheck$.next();
-        stopStatusCheck$.complete();
-        return EMPTY;
-      }
-
-      segmentQueue.update(neededSegments);
-
       const neededActions : IBufferNeededActions[] = [];
-      if (status.discontinuity > 1) {
-        const nextTime = status.discontinuity + 1;
-        const gap: [number, number] = [status.discontinuity, nextTime];
-        neededActions.push(EVENTS.discontinuityEncountered(gap,
-                                                           bufferType));
+
+      const discontinuity = timing.stalled !== null ?
+        representation.index.checkDiscontinuity(timing.currentTime) :
+        -1;
+      if (discontinuity > 1) {
+        const nextTime = discontinuity + 1;
+        const gap: [number, number] = [discontinuity, nextTime];
+        neededActions.push(EVENTS.discontinuityEncountered(gap, bufferType));
       }
-      if (status.shouldRefreshManifest) {
+
+      const shouldRefreshManifest = representation.index.shouldRefresh(neededRange.start,
+                                                                       neededRange.end);
+      if (shouldRefreshManifest) {
         neededActions.push(EVENTS.needsManifestRefresh());
       }
 
       const currentBufferStatus$ =
         neededSegments.length > 0 ? observableOf(EVENTS.activeBuffer(bufferType)) :
-        status.isFull             ? observableOf(EVENTS.fullBuffer(bufferType)) :
+        isFull                    ? observableOf(EVENTS.fullBuffer(bufferType)) :
                                     EMPTY;
       return observableConcat(observableOf(...neededActions),
                               currentBufferStatus$);
@@ -290,7 +273,8 @@ export default function RepresentationBuffer<T>({
   const bufferQueue$ = segmentQueue.start()
     .pipe(mergeMap(onSegmentQueueEvent));
 
-  return observableMerge(status$, bufferQueue$).pipe(share());
+  return observableMerge(status$, bufferQueue$)
+    .pipe(takeUntil(destroy$));
 
   /**
    * React to events from the SegmentQueue.

@@ -39,12 +39,13 @@ import Manifest, {
 } from "../../../manifest";
 import { ISegmentParserResponse, ITransportPipelines } from "../../../transports";
 import assertUnreachable from "../../../utils/assert_unreachable";
-import objectAssign from "../../../utils/object_assign";
 import {
   IABRMetric,
   IABRRequest,
 } from "../../abr";
-import getSegmentBackoffOptions from "./get_segment_backoff_options";
+import getSegmentBackoffOptions, {
+  IBackoffBaseOptions,
+} from "./get_segment_backoff_options";
 import applyPrioritizerToSegmentFetcher, {
   IPrioritizedSegmentFetcherEvent,
 } from "./prioritized_segment_fetcher";
@@ -54,8 +55,8 @@ import createSegmentFetcher from "./segment_fetcher";
 const { MIN_CANCELABLE_PRIORITY,
         MAX_HIGH_PRIORITY_LEVEL } = config;
 
-/** Options used by the `SegmentsFetcher`. */
-export interface ISegmentFetcherOptions {
+/** Options used by the `SegmentRequestScheduler`. */
+export interface ISegmentRequestSchedulerOptions {
   /**
    * Whether the content is played in a low-latency mode.
    * This has an impact on default backoff delays.
@@ -73,7 +74,7 @@ export interface ISegmentFetcherOptions {
   maxRetryOffline : number | undefined;
 }
 
-/** Options needed to create a SegmentQueue. */
+/** Context needed when creating a SegmentQueue. */
 export interface ISegmentQueueContext {
   manifest : Manifest;
   adaptation : Adaptation;
@@ -192,47 +193,19 @@ export interface ISegmentQueue<T> {
    * @returns {Observable}
    */
   start() : Observable<ISegmentQueueEvent<T>>;
-  /**
-   * Empty the current queue after a possibly-pending segment request is
-   * finished.
-   * Empty the queue directly if no segment request is pending.
-   *
-   * You will receive an `ISegmentQueueEmptyEvent` event (through the `start`
-   * method) once the queue is empty.
-   *
-   * Use this to smoothly end (without aborting current requests) the current
-   * SegmentQueue.
-   * Optionnally, you can provide a `queueItem` argument which corresponds to
-   * the segment concerned by the request you want to finish.
-   * If the `SegmentQueue` is not currently loading that segment, the queue will
-   * be directly emptied.
-   *
-   * queue will be updated just before the termination process begin.
-   * This can be useful to indicate to the `SegmentQueue` that it can just
-   * directly stop if the current request is ...
-   * Optionnally, you can give a `queue` argument in which case the current
-   * queue will be updated just before the termination process begin.
-   * This can be useful to indicate to the `SegmentQueue` that it can just
-   * directly stop if the current request is ...
-   * // XXX TODO
-   *
-   * To "re-fill" the queue, you can just call `update` at any time after that
-   * call.
-   */
-  terminate(queue? : ISegmentQueueItem[]) : void;
 }
 
 /**
  * Provide advanced media segment request scheduling for the player.
  *
- * @class SegmentsFetcher
+ * @class SegmentRequestScheduler
  *
  * @example
  * ```js
- * const segmentsFetcher = new SegmentsFetcher(transport, options);
+ * const scheduler = new SegmentRequestScheduler(transport, options);
  *
  * // Create Segment Queue with the right context (Manifest, Adaptation...)
- * const segmentQueue = segmentsFetcher.createSegmentQueue(context, requestsEvents$);
+ * const segmentQueue = scheduler.createSegmentQueue(context, requestsEvents$);
  *
  * // Add wanted segments to the queue, with priorities over other - concurrent -
  * // SegmentQueues
@@ -249,13 +222,17 @@ export interface ISegmentQueue<T> {
  *   ).subscribe((res) => console.log("new audio chunk:", res));
  * ```
  */
-export default class SegmentsFetcher {
+export default class SegmentRequestScheduler {
+  /** Transport pipelines used to fetch segments. */
   private _transport : ITransportPipelines;
-  private _backoffOptions : ISegmentFetcherOptions;
+  /** Adds a notion of priorities between Observable doing segment requests. */
   private _prioritizer : ObservablePrioritizer<any>;
+  /** Options used to generate backoff options needed when performing requests. */
+  private _backoffOptions : IBackoffBaseOptions;
+
   constructor(
     transport : ITransportPipelines,
-    options : ISegmentFetcherOptions
+    options : ISegmentRequestSchedulerOptions
   ) {
     this._transport = transport;
     this._backoffOptions = options;
@@ -266,9 +243,12 @@ export default class SegmentsFetcher {
   }
 
   /**
-   * Create a segment fetcher, allowing to easily perform segment requests.
-   * @param {string} bufferType
-   * @param {Object} options
+   * Create a segment queue.
+   *
+   * A segment queue allows to easily loads multiple segment sequentially, each
+   * with an associated priority.
+   * @param {Object} context
+   * @param {Subject} requests$
    * @returns {Object}
    */
   public createSegmentQueue<T>(
@@ -286,21 +266,9 @@ export default class SegmentsFetcher {
     /**
      * Current queue of segments needed.
      * When the first segment in that queue has been loaded, it is removed
-     * from this array and the next element is considered.
+     * from this array and the new first element is considered.
      */
     let currentQueue : ISegmentQueueItem[] = [];
-
-    /**
-     * When `true`, we want to empty the queue at the end of the current
-     * request - or directly, if no request is pending.
-     */
-    let terminating = false;
-
-    /**
-     * Allows to manually check the current queue, to see if our current
-     * request is still adapted.
-     */
-    const reCheckQueue$ = new Subject();
 
     /**
      * Information about the current segment request. `null` if no segment
@@ -321,6 +289,12 @@ export default class SegmentsFetcher {
       obs: Observable<IPrioritizedSegmentFetcherEvent<T>>;
     } | null = null;
 
+    /**
+     * Allows to manually check the current queue, to see if our current
+     * request is still for the most wanted segment in the queue.
+     */
+    const reCheckQueue$ = new Subject();
+
     /** Allows to cancel a previously-created downloading queue. */
     let cancelDownloadQueue$ = new Subject();
 
@@ -334,10 +308,12 @@ export default class SegmentsFetcher {
         if (pendingTask !== null && currentQueue.length > 0 &&
             currentQueue[0].segment.id === pendingTask.segment.id)
         {
-          // Still same segment needed, everything that may change is the priority.
+          // Still same segment needed, only thing that may change is the priority.
           fetcher.updatePriority(pendingTask.obs, currentQueue[0].priority);
           return EMPTY;
         }
+
+        // we will want to cancel the previous queue just after this one starts.
         const cancelPreviousDownloadQueue$ = cancelDownloadQueue$;
         cancelDownloadQueue$ = new Subject();
         return observableMerge(requestSegmentsInQueue(),
@@ -356,16 +332,8 @@ export default class SegmentsFetcher {
 
     return {
       update(newQueue : ISegmentQueueItem[]) : void {
-        terminating = false;
         currentQueue = newQueue;
         reCheckQueue$.next();
-      },
-
-      terminate(_newQueue : ISegmentQueueItem[]) : void {
-        terminating = true;
-        if (pendingTask === null || !pendingTask.isLoading) {
-          reCheckQueue$.next();
-        }
       },
 
       start() : Observable<ISegmentQueueEvent<T>> {
@@ -380,16 +348,11 @@ export default class SegmentsFetcher {
      */
     function requestSegmentsInQueue() : Observable<ISegmentQueueEvent<T>> {
       return observableDefer(() => {
-        if (terminating) {
-          terminating = false;
-          currentQueue = [];
-        }
         if (currentQueue.length === 0) {
           return observableOf({ type: "empty" as const });
         }
         const { segment, priority } = currentQueue[0];
-        const request$ = fetcher.createRequest(objectAssign({ segment }, context),
-                                               priority);
+        const request$ = fetcher.createRequest(segment, priority);
         pendingTask = { segment, priority, isLoading: false, obs: request$ };
         return request$.pipe(mergeMap((evt) : Observable<ISegmentQueueEvent<T>> => {
             switch (evt.type) {
@@ -411,7 +374,7 @@ export default class SegmentsFetcher {
                 return observableOf({ type: "interrupted" as const,
                                       value: { segment } });
               case "ended":
-                currentQueue.unshift();
+                currentQueue.shift();
                 pendingTask = null;
                 return requestSegmentsInQueue();
               default:

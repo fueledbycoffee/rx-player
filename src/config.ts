@@ -94,7 +94,7 @@ export default {
    * content.
    * @type {Number}
    */
-  DEFAULT_WANTED_BUFFER_AHEAD: 500,
+  DEFAULT_WANTED_BUFFER_AHEAD: 30,
 
   /**
    * Default max buffer size ahead of the current position in seconds.

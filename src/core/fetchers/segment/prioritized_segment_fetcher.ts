@@ -17,7 +17,7 @@
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import log from "../../../log";
-import { ISegmentLoaderContent } from "./create_segment_loader";
+import { ISegment } from "../../../manifest";
 import ObservablePrioritizer, { ITaskEvent } from "./prioritizer";
 import {
   ISegmentFetcher,
@@ -34,8 +34,9 @@ export interface ISegmentFetcherInterruptedEvent { type : "interrupted"; }
 
 /**
  * Event sent when a segment request just ended.
- * You can use this event to schedule another task you wanted to perform at best
- * immediately after that one (its priority will be checked).
+ * You can use this event to schedule another task you want to perform
+ * immediately after that one (its priority will still be checked against other
+ * waiting tasks).
  */
 export interface IEndedTaskEvent { type : "ended"; }
 
@@ -47,7 +48,7 @@ export type IPrioritizedSegmentFetcherEvent<T> = ISegmentFetcherEvent<T> |
 /** Oject returned by `applyPrioritizerToSegmentFetcher`. */
 export interface IPrioritizedSegmentFetcher<T> {
   /** Create a new request for a segment with a given priority. */
-  createRequest : (content : ISegmentLoaderContent,
+  createRequest : (content : ISegment,
                    priority? : number) => Observable<IPrioritizedSegmentFetcherEvent<T>>;
 
   /** Update priority of a request created through `createRequest`. */
@@ -71,8 +72,9 @@ export default function applyPrioritizerToSegmentFetcher<T>(
 ) : IPrioritizedSegmentFetcher<T> {
   /**
    * The observables returned by `createRequest` are not exactly the same than
-   * the one created by the `ObservablePrioritizer`. Because we still have to
-   * keep a handle on that value.
+   * the one created by the `ObservablePrioritizer`.
+   * This WeakMap allows to map the former to the latter (for example, to allow
+   * an Observable's priority to be updated).
    */
   const taskHandlers =
     new WeakMap<Observable<IPrioritizedSegmentFetcherEvent<T>>,
@@ -86,10 +88,9 @@ export default function applyPrioritizerToSegmentFetcher<T>(
      * @returns {Observable}
      */
     createRequest(
-      content : any,
+      content : ISegment,
       priority : number = 0
     ) : Observable<IPrioritizedSegmentFetcherEvent<T>> {
-      debugger;
       const task = prioritizer.create(fetcher(content), priority);
       const flattenTask = task.pipe(
         map((evt) => {
