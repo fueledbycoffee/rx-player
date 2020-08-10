@@ -10763,7 +10763,7 @@ function setTrackIdInTkhdTo1(buf) {
     return;
   }
 
-  var tkhd = Object(_get_box__WEBPACK_IMPORTED_MODULE_0__[/* getBoxContent */ "b"])(moov, 0x746B6864
+  var tkhd = Object(_get_box__WEBPACK_IMPORTED_MODULE_0__[/* getBoxContent */ "b"])(trak, 0x746B6864
   /* "tkhd" */
   );
 
@@ -10775,12 +10775,12 @@ function setTrackIdInTkhdTo1(buf) {
   if (tkhd[0] > 1) {
     console.error("REPLACING TK_ID: INVALID TKHD VERSION:", tkhd[0]);
     return;
-  } else if (tkhd[0] === 0) {
+  } else if (tkhd[0] === 1) {
     tkhd[4 + 8 + 8] = 0;
     tkhd[4 + 8 + 8 + 1] = 0;
     tkhd[4 + 8 + 8 + 2] = 0;
     tkhd[4 + 8 + 8 + 3] = 1;
-  } else if (tkhd[0] === 1) {
+  } else if (tkhd[0] === 0) {
     tkhd[4 + 4 + 4] = 0;
     tkhd[4 + 4 + 4 + 1] = 0;
     tkhd[4 + 4 + 4 + 2] = 0;
