@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <head>
+      <meta charset="UTF-8">
+      <title>RxPlayer - CANAL+ (stand-alone demo)</title>
+    </head>
+    <body>
+      <video id="video" height="270px" width="480px"></video>
+      <script type="text/javascript" src="./lib.js" charset="utf-8"></script>
+      <script charset="utf-8">
+        window.paddingtonURL = "https://dash-od-aka-canalplus.akamaized.net/MDRM/MKPC/CLEAR_AUDIO/H264/index.mpd";
+        window.tvbURL = "https://dsh-m005-live-aka-canalplus.akamaized.net/live/disk/tvbreizh-hd/dash-fhddvr/tvbreizh-hd.mpd";
+        window.url = paddingtonURL;
+
+        window.licenseServerUrl = "https://secure-webtv.canal-bis.com/WebPortal-vabf/TestDRMDASH/api/Playready";
+        window.persistentLicense = true;
+        // You can set it to "INFO" or even to "NONE" if too verbose
+        window.RxPlayer.LogLevel = "DEBUG";
+
+        const videoElement =  document.getElementById("video");
+        videoElement.style.width = "100%";
+        videoElement.style.height = "100%";
+        videoElement.style.position = "absolute";
+        document.body.style.margin = "0px";
+        const player = new window.RxPlayer({
+          videoElement
+        });
+        window.player = player;
+
+        /**
+         * Convert an array of UTF-16 code points to its JS string form.
+         * @param {Uint8Array} bytes
+         * @returns {string}
+         */
+        function UTF16BytesToString(bytes) {
+          return String.fromCharCode.apply(null, bytes);
+        }
+
+        /**
+         * Update the format of the "challenge" before sending it to the license
+         * server.
+         * @param {Uint8Array} challenge
+         * @returns {string}
+         */
+        function formatPlayreadyChallenge(challenge) {
+          const str = UTF16BytesToString(challenge);
+
+          // The challenge can be wrapped as Base64 in an XML node in some platforms.
+          // Extract it if we're in that case.
+          const match = /<Challenge encoding="base64encoded">(.*)<\/Challenge>/.exec(str);
+          const xml = match ?
+            atob(match[1]) : /* IE11 / EDGE */
+            str;
+          return xml;
+        }
+
+        /**
+         * Function called by the RxPlayer when a CDM send us a message for a
+         * license request.
+         * This function formats the "challenge", send the requests, formats the
+         * license and give it in a BufferSource form to the RxPlayer which will
+         * just pass it through to the CDM (through the MediaKeySession.update
+         * method).
+         * @param {Uint8Array} challenge
+         * @returns {Promise.<Uint8Array|ArrayBuffer>}
+         */
+        function getLicense(rawChallenge) {
+          const challenge = formatPlayreadyChallenge(rawChallenge);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", window.licenseServerUrl, true);
+          return new Promise((resolve, reject) => {
+            xhr.onerror = (err) => {
+              const error = new Error("getLicense's request failed on an error: " + err);
+              error.fallbackOnLastTry = true;
+              reject(error);
+            };
+            xhr.onload = (evt) => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                const license = evt.target.response;
+                resolve(license);
+              } else {
+                const error = new Error("getLicense's request finished with a " +
+                                        `${xhr.status} HTTP error`);
+                error.noRetry = true;
+                error.fallbackOnLastTry = true;
+                reject(error);
+              }
+            };
+            xhr.responseType = "arraybuffer";
+            xhr.setRequestHeader("content-type", "text/xml; charset=utf-8");
+            xhr.send(challenge);
+          });
+        };
+
+        const oldAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+        MediaSource.prototype.addSourceBuffer = function (type) {
+          console.log("/!\ Monkey patching - Calling addSourceBuffer.");
+          return oldAddSourceBuffer.call(this, type + ";esvm=true");
+        }
+
+        // Load and play
+        function load() {
+          player.loadVideo({ url: window.url,
+                             transport: "dash",
+                             autoPlay: true,
+                             keySystems: [{ type: "com.microsoft.playready.recommendation.esvm",
+                                            persistentStateRequired: true,
+                                            fallbackOn: {
+                                              keyInternalError: true,
+                                              keyOutputRestricted: true
+                                            },
+                                            distinctiveIdentifierRequired: true,
+                                            persistentLicense: window.persistentLicense, // [SIE] added persistentLicense to get sesionType "persistent-license"
+                                            getLicense } ] });
+        }
+        window.reloadVideo = load;
+      </script>
+    </body>
+
+</html>
