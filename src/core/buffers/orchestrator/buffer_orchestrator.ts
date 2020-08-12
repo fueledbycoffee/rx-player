@@ -51,12 +51,12 @@ import { SegmentFetcherCreator } from "../../fetchers";
 import SourceBuffersStore, {
   BufferGarbageCollector,
   IBufferType,
-  ITextTrackSourceBufferOptions,
   QueuedSourceBuffer,
 } from "../../source_buffers";
 import EVENTS from "../events_generators";
 import PeriodBuffer, {
   IPeriodBufferClockTick,
+  IPeriodBufferOptions,
 } from "../period";
 import {
   IBufferOrchestratorEvent,
@@ -71,6 +71,13 @@ export type IBufferOrchestratorClockTick = IPeriodBufferClockTick;
 
 const { MAXIMUM_MAX_BUFFER_AHEAD,
         MAXIMUM_MAX_BUFFER_BEHIND } = config;
+
+/** Options tweaking the behavior of the BufferOrchestrator. */
+export type IBufferOrchestratorOptions =
+  IPeriodBufferOptions &
+  { wantedBufferAhead$ : BehaviorSubject<number>;
+    maxBufferAhead$ : Observable<number>;
+    maxBufferBehind$ : Observable<number>; };
 
 /**
  * Create and manage the various Buffer Observables needed for the content to
@@ -99,9 +106,6 @@ const { MAXIMUM_MAX_BUFFER_AHEAD,
  * @param {Object} segmentFetcherCreator - Allow to download segments.
  * @param {Object} options
  * @returns {Observable}
- *
- * TODO Special case for image Buffer, where we want data for EVERY active
- * periods.
  */
 export default function BufferOrchestrator(
   content : { manifest : Manifest;
@@ -110,11 +114,7 @@ export default function BufferOrchestrator(
   abrManager : ABRManager,
   sourceBuffersStore : SourceBuffersStore,
   segmentFetcherCreator : SegmentFetcherCreator<any>,
-  options: { wantedBufferAhead$ : BehaviorSubject<number>;
-             maxBufferAhead$ : Observable<number>;
-             maxBufferBehind$ : Observable<number>;
-             textTrackOptions? : ITextTrackSourceBufferOptions;
-             manualBitrateSwitchingMode : "seamless" | "direct"; }
+  options: IBufferOrchestratorOptions
 ) : Observable<IBufferOrchestratorEvent> {
   const { manifest, initialPeriod } = content;
   const { maxBufferAhead$, maxBufferBehind$, wantedBufferAhead$ } = options;

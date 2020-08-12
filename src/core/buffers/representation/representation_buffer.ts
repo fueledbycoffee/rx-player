@@ -110,7 +110,7 @@ export interface IRepresentationBufferArguments<T> {
   segmentFetcher : IPrioritizedSegmentFetcher<T>;
   terminate$ : Observable<void>;
   bufferGoal$ : Observable<number>;
-  knownStableBitrate$: Observable< undefined | number>;
+  fastSwitchThreshold$: Observable< undefined | number>;
 }
 
 // Information about a Segment waiting for download
@@ -166,7 +166,7 @@ export default function RepresentationBuffer<T>({
   bufferGoal$, // emit the buffer size we have to reach
   clock$, // emit current playback information regularly
   content, // The content we want to play
-  knownStableBitrate$, // Bitrate higher or equal to this value should not be
+  fastSwitchThreshold$, // Bitrate higher or equal to this value should not be
                       // replaced by segments of better quality
   queuedSourceBuffer, // interface to the SourceBuffer
   segmentFetcher, // allows to download new segments
@@ -208,10 +208,10 @@ export default function RepresentationBuffer<T>({
                     startWith(false)),
     reCheckNeededSegments$.pipe(startWith(undefined)) ]
   ).pipe(
-    withLatestFrom(knownStableBitrate$),
+    withLatestFrom(fastSwitchThreshold$),
     map(function getCurrentStatus(
       [ [ timing, bufferGoal, terminate ],
-        knownStableBitrate ]
+        fastSwitchThreshold ]
     ) : { discontinuity : number;
           isFull : boolean;
           terminate : boolean;
@@ -245,7 +245,7 @@ export default function RepresentationBuffer<T>({
       } else {
         neededSegments = getNeededSegments({ content,
                                              currentPlaybackTime: timing.currentTime,
-                                             knownStableBitrate,
+                                             fastSwitchThreshold,
                                              loadedSegmentPendingPush,
                                              neededRange,
                                              segmentInventory })

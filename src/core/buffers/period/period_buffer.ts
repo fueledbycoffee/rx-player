@@ -49,7 +49,9 @@ import SourceBuffersStore, {
   ITextTrackSourceBufferOptions,
   QueuedSourceBuffer,
 } from "../../source_buffers";
-import AdaptationBuffer from "../adaptation";
+import AdaptationBuffer, {
+  IAdaptationBufferOptions,
+} from "../adaptation";
 import EVENTS from "../events_generators";
 import {
   IAdaptationBufferEvent,
@@ -81,10 +83,13 @@ export interface IPeriodBufferArguments {
   garbageCollectors : WeakMapMemory<QueuedSourceBuffer<unknown>, Observable<never>>;
   segmentFetcherCreator : SegmentFetcherCreator<any>;
   sourceBuffersStore : SourceBuffersStore;
-  options: { manualBitrateSwitchingMode : "seamless" | "direct";
-             textTrackOptions? : ITextTrackSourceBufferOptions; };
+  options: IPeriodBufferOptions;
   wantedBufferAhead$ : BehaviorSubject<number>;
 }
+
+/** Options tweaking the behavior of the PeriodBuffer. */
+export type IPeriodBufferOptions = IAdaptationBufferOptions &
+                                   { textTrackOptions? : ITextTrackSourceBufferOptions };
 
 /**
  * Create single PeriodBuffer Observable:

@@ -614,6 +614,7 @@ class Player extends EventEmitter<IPublicAPIEvent> {
     const { autoPlay,
             defaultAudioTrack,
             defaultTextTrack,
+            enableFastSwitching,
             keySystems,
             lowLatencyMode,
             manualBitrateSwitchingMode,
@@ -710,7 +711,8 @@ class Player extends EventEmitter<IPublicAPIEvent> {
         { textTrackMode: "html" as const,
           textTrackElement: options.textTrackElement };
 
-      const bufferOptions = objectAssign({ manualBitrateSwitchingMode },
+      const bufferOptions = objectAssign({ enableFastSwitching,
+                                           manualBitrateSwitchingMode },
                                          this._priv_bufferOptions);
 
       // playback$ Observable, through which the content will be launched.
