@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Subject } from "rxjs";
 import {
   ICompatMediaKeySystemAccess,
   ICustomMediaKeys,
@@ -58,8 +59,10 @@ export interface IEncryptedEvent { type: "encrypted-event-received";
  * This is necessary before creating a MediaKeySession which will allow
  * encryption keys to be communicated.
  */
-export interface ICreatedMediaKeysEvent { type: "created-media-keys";
-                                          value: IMediaKeysInfos; }
+export interface ICreatedMediaKeysEvent {
+  type: "created-media-keys";
+  value: { mediaKeysInfos: IMediaKeysInfos;
+           attachMediaKeys$: Subject<unknown>; }; }
 
 // Sent when the created (or already created) MediaKeys is attached to the
 // current HTMLMediaElement element.
