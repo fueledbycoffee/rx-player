@@ -39,7 +39,6 @@ import {
   finalize,
   ignoreElements,
   map,
-  mapTo,
   mergeMap,
   share,
   startWith,
@@ -98,6 +97,17 @@ export interface IRepresentationBufferClockTick {
                              // position we actually want to download from
 }
 
+/** Item emitted by the `terminate$` Observable given to a RepresentationBuffer. */
+export interface ITerminationOrder {
+  /*
+   * If `true`, the RepresentationBuffer should interrupt immediately every long
+   * pending operations such as segment downloads.
+   * If it is set to `false`, it can continue until those operations are
+   * finished.
+   */
+  urgent : boolean;
+}
+
 // Arguments to give to the RepresentationBuffer
 // @see RepresentationBuffer for documentation
 export interface IRepresentationBufferArguments<T> {
@@ -108,7 +118,7 @@ export interface IRepresentationBufferArguments<T> {
              representation : Representation; };
   queuedSourceBuffer : QueuedSourceBuffer<T>;
   segmentFetcher : IPrioritizedSegmentFetcher<T>;
-  terminate$ : Observable<void>;
+  terminate$ : Observable<ITerminationOrder>;
   bufferGoal$ : Observable<number>;
   knownStableBitrate$: Observable< undefined | number>;
 }
@@ -204,8 +214,7 @@ export default function RepresentationBuffer<T>({
     clock$,
     bufferGoal$,
     terminate$.pipe(take(1),
-                    mapTo(true),
-                    startWith(false)),
+                    startWith(null)),
     reCheckNeededSegments$.pipe(startWith(undefined)) ]
   ).pipe(
     withLatestFrom(knownStableBitrate$),
@@ -214,7 +223,7 @@ export default function RepresentationBuffer<T>({
         knownStableBitrate ]
     ) : { discontinuity : number;
           isFull : boolean;
-          terminate : boolean;
+          terminate : ITerminationOrder | null;
           neededSegments : IQueuedSegment[];
           shouldRefreshManifest : boolean; }
     {
@@ -309,9 +318,13 @@ export default function RepresentationBuffer<T>({
       const neededSegments = status.neededSegments;
       const mostNeededSegment = neededSegments[0];
 
-      if (status.terminate) {
+      if (status.terminate !== null) {
         downloadQueue = [];
-        if (currentSegmentRequest == null) {
+        if (status.terminate.urgent) {
+          log.debug("Buffer: urgent termination request, terminate.", bufferType);
+          startDownloadingQueue$.complete(); // complete the downloading queue
+          return observableOf({ type: "terminated" as "terminated" });
+        } else if (currentSegmentRequest == null) {
           log.debug("Buffer: no request, terminate.", bufferType);
           startDownloadingQueue$.complete(); // complete the downloading queue
           return observableOf({ type: "terminated" as "terminated" });
