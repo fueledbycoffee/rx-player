@@ -63,7 +63,6 @@ import {
 } from "../../../transports";
 import assertUnreachable from "../../../utils/assert_unreachable";
 import objectAssign from "../../../utils/object_assign";
-import SimpleSet from "../../../utils/simple_set";
 import {
   IPrioritizedSegmentFetcher,
   ISegmentFetcherEvent,
@@ -201,10 +200,6 @@ export default function RepresentationBuffer<T>({
   // null if no request is pending.
   let currentSegmentRequest : ISegmentRequestObject<T>|null = null;
 
-  // Keep track of downloaded segments currently awaiting to be appended to the
-  // QueuedSourceBuffer.
-  const loadedSegmentPendingPush = new SimpleSet();
-
   const status$ = observableCombineLatest([
     clock$,
     bufferGoal$,
@@ -234,7 +229,6 @@ export default function RepresentationBuffer<T>({
         representation.index.shouldRefresh(neededRange.start,
                                            neededRange.end);
 
-      const segmentInventory = queuedSourceBuffer.getInventory();
       let neededSegments : IQueuedSegment[] = [];
 
       if (!representation.index.isInitialized()) {
@@ -251,9 +245,8 @@ export default function RepresentationBuffer<T>({
         neededSegments = getNeededSegments({ content,
                                              currentPlaybackTime: timing.currentTime,
                                              knownStableBitrate,
-                                             loadedSegmentPendingPush,
                                              neededRange,
-                                             segmentInventory })
+                                             queuedSourceBuffer })
           .map((segment) => ({ priority: getSegmentPriority(segment, timing),
                                segment }));
 
@@ -505,13 +498,8 @@ export default function RepresentationBuffer<T>({
 
       case "end-of-segment": {
         const { segment } = evt.value;
-        loadedSegmentPendingPush.add(segment.id);
         return queuedSourceBuffer.endOfSegment(objectAssign({ segment }, content))
-          .pipe(
-            ignoreElements(),
-            finalize(() => { // remove from queue
-              loadedSegmentPendingPush.remove(segment.id);
-            }));
+          .pipe(ignoreElements());
       }
 
       default:
