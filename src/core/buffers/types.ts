@@ -103,6 +103,24 @@ export interface IProtectedSegmentEvent {
   value : { type : string;
             data : Uint8Array; }; }
 
+/**
+ * Event sent when a `RepresentationBuffer` is terminating:
+ *
+ *   - it has finished all its segment requests and won't do new ones.
+ *
+ *   - it has stopped regularly checking for its current status.
+ *
+ *   - it only waits until all the segments it has loaded have been pushed to the
+ *     SourceBuffer before actually completing.
+ *
+ * You can use this event as a hint that a new `RepresentationBuffer` can be
+ * created.
+ */
+export interface IBufferTerminatingEvent {
+  type : "buffer-terminating";
+  value : undefined;
+}
+
 /** Event sent by a `RepresentationBuffer`. */
 export type IRepresentationBufferEvent<T> = IBufferEventAddedSegment<T> |
                                             IProtectedSegmentEvent |
@@ -111,6 +129,7 @@ export type IRepresentationBufferEvent<T> = IBufferEventAddedSegment<T> |
                                             IBufferManifestMightBeOutOfSync |
                                             IBufferNeedsDiscontinuitySeek |
                                             IBufferNeedsManifestRefresh |
+                                            IBufferTerminatingEvent |
                                             IBufferWarningEvent;
 
 /** Emitted as new bitrate estimations are done. */

@@ -33,6 +33,7 @@ import {
   IBufferNeedsManifestRefresh,
   IBufferStateActive,
   IBufferStateFull,
+  IBufferTerminatingEvent,
   IBufferWarningEvent,
   ICompletedBufferEvent,
   IEndOfStreamEvent,
@@ -175,6 +176,11 @@ const EVENTS = {
   ) : IRepresentationChangeEvent {
     return { type: "representationChange",
              value: { type, period, representation } };
+  },
+
+  bufferTerminating() : IBufferTerminatingEvent {
+    return { type: "buffer-terminating",
+             value: undefined };
   },
 
   resumeStream() : IResumeStreamEvent {

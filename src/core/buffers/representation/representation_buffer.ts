@@ -76,6 +76,7 @@ import {
   IBufferNeedsManifestRefresh,
   IBufferStateActive,
   IBufferStateFull,
+  IBufferTerminatingEvent,
   IProtectedSegmentEvent,
   IRepresentationBufferEvent,
 } from "../types";
@@ -311,7 +312,7 @@ export default function RepresentationBuffer<T>({
     mergeMap(function handleStatus(status) : Observable<IBufferNeededActions |
                                                         IBufferStateFull |
                                                         IBufferStateActive |
-                                                        { type : "terminated" }
+                                                        IBufferTerminatingEvent
     > {
       const neededSegments = status.neededSegments;
       const mostNeededSegment = neededSegments[0];
@@ -321,11 +322,11 @@ export default function RepresentationBuffer<T>({
         if (status.terminate.urgent) {
           log.debug("Buffer: urgent termination request, terminate.", bufferType);
           startDownloadingQueue$.complete(); // complete the downloading queue
-          return observableOf({ type: "terminated" as "terminated" });
+          return observableOf(EVENTS.bufferTerminating());
         } else if (currentSegmentRequest == null) {
           log.debug("Buffer: no request, terminate.", bufferType);
           startDownloadingQueue$.complete(); // complete the downloading queue
-          return observableOf({ type: "terminated" as "terminated" });
+          return observableOf(EVENTS.bufferTerminating());
         } else if (
           mostNeededSegment == null ||
           currentSegmentRequest.segment.id !== mostNeededSegment.segment.id
@@ -333,7 +334,7 @@ export default function RepresentationBuffer<T>({
           log.debug("Buffer: cancel request and terminate.", bufferType);
           startDownloadingQueue$.next(); // interrupt the current request
           startDownloadingQueue$.complete(); // complete the downloading queue
-          return observableOf({ type: "terminated" as "terminated" });
+          return observableOf(EVENTS.bufferTerminating());
         } else if (currentSegmentRequest.priority !== mostNeededSegment.priority) {
           const { request$ } = currentSegmentRequest;
           segmentFetcher.updatePriority(request$, mostNeededSegment.priority);
@@ -392,9 +393,7 @@ export default function RepresentationBuffer<T>({
       return observableConcat(observableOf(...neededActions),
                               observableOf(EVENTS.activeBuffer(bufferType)));
     }),
-    takeWhile((e) : e is IBufferNeededActions|IBufferStateFull|IBufferStateActive =>
-      e.type !== "terminated"
-    )
+    takeWhile((e) => e.type !== "buffer-terminating", true)
   );
 
   // Buffer Queue:
