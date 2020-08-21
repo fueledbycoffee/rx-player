@@ -28,31 +28,23 @@ import {
   BehaviorSubject,
   concat as observableConcat,
   defer as observableDefer,
+  EMPTY,
   merge as observableMerge,
   Observable,
   of as observableOf,
-  ReplaySubject,
-  Subject,
 } from "rxjs";
 import {
   catchError,
   distinctUntilChanged,
   exhaustMap,
   filter,
-  ignoreElements,
   map,
   mergeMap,
-  multicast,
-  shareReplay,
-  skip,
-  startWith,
+  share,
   take,
   tap,
 } from "rxjs/operators";
-import {
-  formatError,
-  MediaError,
-} from "../../../errors";
+import { formatError } from "../../../errors";
 import log from "../../../log";
 import Manifest, {
   Adaptation,
@@ -62,8 +54,6 @@ import Manifest, {
 import deferSubscriptions from "../../../utils/defer_subscriptions";
 import ABRManager, {
   IABREstimate,
-  IABRMetric,
-  IABRRequest,
 } from "../../abr";
 import { SegmentFetcherCreator } from "../../fetchers";
 import { QueuedSourceBuffer } from "../../source_buffers";
@@ -80,8 +70,8 @@ import {
   IBufferStateActive,
   IBufferStateFull,
   IRepresentationBufferEvent,
-  IRepresentationChangeEvent,
 } from "../types";
+import createRepresentationEstimator from "./create_representation_estimator";
 
 /** `Clock tick` information needed by the AdaptationBuffer. */
 export interface IAdaptationBufferClockTick extends IRepresentationBufferClockTick {
@@ -171,56 +161,29 @@ export default function AdaptationBuffer<T>({
    */
   const bufferGoalRatioMap: Partial<Record<string, number>> = {};
 
-  /**
-   * Emit when the current RepresentationBuffer should be terminated to make
-   * place for a new one (e.g. when switching quality).
-   */
-  const terminateCurrentBuffer$ = new Subject<ITerminationOrder>();
-
-  const { estimator$,
-          requestsEvents$,
-          bufferEvents$ } = createRepresentationEstimator(adaptation, abrManager, clock$);
+  const { estimator$, requestFeedback$, bufferFeedback$ } =
+    createRepresentationEstimator(adaptation, abrManager, clock$);
 
   /** Allows the `RepresentationBuffer` to easily fetch media segments. */
   const segmentFetcher = segmentFetcherCreator.createSegmentFetcher(adaptation.type,
-                                                                    requestsEvents$);
-
-  /** Emits the last estimation on Subscription. */
-  const lastEstimation$ = estimator$.pipe(deferSubscriptions(), shareReplay(1));
+                                                                    requestFeedback$);
 
   /**
-   * Observable used to anounce to the current `RepresentationBuffer` it should
-   * terminate to let its place to the next `RepresentationBuffer`.
+   * Emits each time an estimation is made through the `abrEstimation$` Observable,
+   * starting with the last one.
+   * This allows to easily rely on that value in inner Observables which might also
+   * need the last already-considered value.
    */
-  const switchQuality$ = lastEstimation$.pipe(
-    distinctUntilChanged((a, b) => a.manual === b.manual &&
-                                   a.representation.id === b.representation.id),
-    skip(1), // Skip initial decision
-    tap((estimation) => {
-      if (estimation.urgent) {
-        log.info("Buffer: urgent Representation switch", adaptation.type);
-        terminateCurrentBuffer$.next({ urgent: true });
-      } else {
-        log.info("Buffer: slow Representation switch", adaptation.type);
-        terminateCurrentBuffer$.next({ urgent: false });
-      }
-    }),
-    ignoreElements());
+  const lastEstimation$ = new BehaviorSubject<null | IABREstimate>(null);
 
-  /**
-   * Bitrate higher or equal to this value should not be replaced by segments of
-   * better quality.
-   * undefined means everything can potentially be replaced
-   */
-  const knownStableBitrate$ = lastEstimation$.pipe(
-    map(({ knownStableBitrate }) => knownStableBitrate),
-    // always emit the last on subscribe
-    multicast(() => new ReplaySubject< number | undefined >(1)),
-    startWith(undefined),
-    distinctUntilChanged());
+  /** Emits abr estimations on Subscription. */
+  const abrEstimation$ = estimator$.pipe(
+    tap((estimation) => { lastEstimation$.next(estimation); }),
+    deferSubscriptions(),
+    share());
 
-  /** Emit at each bitrate estimate done by the ABRManager. */
-  const bitrateEstimates$ = lastEstimation$.pipe(
+  /** Emit at each bitrate estimation done by the ABRManager. */
+  const bitrateEstimation$ = abrEstimation$.pipe(
     filter(({ bitrate }) => bitrate != null),
     distinctUntilChanged((old, current) => old.bitrate === current.bitrate),
     map(({ bitrate }) => {
@@ -230,29 +193,72 @@ export default function AdaptationBuffer<T>({
   );
 
   /** Recursively create `RepresentationBuffer`s according to the last estimation. */
-  const representationBuffers$ = lastEstimation$
-      .pipe(exhaustMap((estimate, i) : Observable<IAdaptationBufferEvent<T>> => {
-        return recursivelyCreateRepresentationBuffers(estimate, i === 0);
+  const representationBuffers$ = abrEstimation$
+      .pipe(exhaustMap((estimation, i) : Observable<IAdaptationBufferEvent<T>> => {
+        return recursivelyCreateRepresentationBuffers(estimation, i === 0);
       }));
 
-  return observableMerge(representationBuffers$,
-                         bitrateEstimates$,
-                         switchQuality$);
+  return observableMerge(representationBuffers$, bitrateEstimation$);
 
+  /**
+   * Create `RepresentationBuffer`s starting with the Representation indicated in
+   * `fromEstimation` argument.
+   * Each time a new estimation is made, this function will create a new
+   * `RepresentationBuffer` corresponding to that new estimation.
+   * @param {Object} fromEstimation - The first estimation we should start with
+   * @param {boolean} isFirstEstimation - Whether this is the first time we're
+   * creating a RepresentationBuffer in the corresponding `AdaptationBuffer`.
+   * This is important because manual quality switches might need a full reload
+   * of the MediaSource _except_ if we are talking about the first quality chosen.
+   * @returns {Observable}
+   */
   function recursivelyCreateRepresentationBuffers(
-    estimate : IABREstimate,
-    isFirstEstimate : boolean
+    fromEstimation : IABREstimate,
+    isFirstEstimation : boolean
   ) : Observable<IAdaptationBufferEvent<T>> {
-    const { representation } = estimate;
+    const { representation } = fromEstimation;
 
     // A manual bitrate switch might need an immediate feedback.
     // To do that properly, we need to reload the MediaSource
     if (directManualBitrateSwitching &&
-        estimate.manual &&
-        !isFirstEstimate)
+        fromEstimation.manual &&
+        !isFirstEstimation)
     {
       return clock$.pipe(map(t => EVENTS.needsMediaSourceReload(period, t)));
     }
+
+    /**
+     * Emit when the current RepresentationBuffer should be terminated to make
+     * place for a new one (e.g. when switching quality).
+     */
+    const terminateCurrentBuffer$ = lastEstimation$.pipe(
+      filter((newEstimation) => newEstimation === null ||
+                                newEstimation.representation.id !== representation.id ||
+                                (newEstimation.manual && !fromEstimation.manual)),
+      take(1),
+      map((newEstimation) => {
+        if (newEstimation === null) {
+          log.info("Buffer: urgent Representation termination", adaptation.type);
+          return ({ urgent: true });
+        }
+        if (newEstimation.urgent) {
+          log.info("Buffer: urgent Representation switch", adaptation.type);
+          return ({ urgent: true });
+        } else {
+          log.info("Buffer: slow Representation switch", adaptation.type);
+          return ({ urgent: false });
+        }
+      }));
+
+    /**
+     * Bitrate higher or equal to this value should not be replaced by segments of
+     * better quality.
+     * undefined means everything can potentially be replaced
+     */
+    const knownStableBitrate$ = lastEstimation$.pipe(
+      map((estimation) => estimation === null ? undefined :
+                                                estimation.knownStableBitrate),
+      distinctUntilChanged());
 
     const representationChange$ =
       observableOf(EVENTS.representationChange(adaptation.type,
@@ -260,22 +266,24 @@ export default function AdaptationBuffer<T>({
                                                representation));
 
     return observableConcat(representationChange$,
-      createRepresentationBuffer(representation))
+                            createRepresentationBuffer(representation,
+                                                       terminateCurrentBuffer$,
+                                                       knownStableBitrate$))
     .pipe(
       tap((evt) : void => {
         if (evt.type === "representationChange" ||
             evt.type === "added-segment")
         {
-          return bufferEvents$.next(evt);
+          return bufferFeedback$.next(evt);
         }
       }),
       mergeMap((evt) => {
         if (evt.type === "buffer-terminating") {
-          return lastEstimation$.pipe(
-            take(1),
-            mergeMap((newEstimate : IABREstimate) => {
-              return recursivelyCreateRepresentationBuffers(newEstimate, false);
-            }));
+          const lastEstimation = lastEstimation$.getValue();
+          if (lastEstimation === null) {
+            return EMPTY;
+          }
+          return recursivelyCreateRepresentationBuffers(lastEstimation, false);
         }
         return observableOf(evt);
       }));
@@ -288,7 +296,9 @@ export default function AdaptationBuffer<T>({
    * @returns {Observable}
    */
   function createRepresentationBuffer(
-    representation : Representation
+    representation : Representation,
+    terminateCurrentBuffer$ : Observable<ITerminationOrder>,
+    knownStableBitrate$ : Observable<number | undefined>
   ) : Observable<IRepresentationBufferEvent<T>> {
     return observableDefer(() => {
       const oldBufferGoalRatio = bufferGoalRatioMap[representation.id];
@@ -325,43 +335,14 @@ export default function AdaptationBuffer<T>({
               throw formattedError;
             }
             bufferGoalRatioMap[representation.id] = lastBufferGoalRatio - 0.25;
-            return createRepresentationBuffer(representation);
+            return createRepresentationBuffer(representation,
+                                              terminateCurrentBuffer$,
+                                              knownStableBitrate$);
           }
           throw formattedError;
         }));
     });
   }
-}
-
-function createRepresentationEstimator(
-  adaptation : Adaptation,
-  abrManager : ABRManager,
-  clock$ : Observable<IAdaptationBufferClockTick>
-) : { estimator$ : Observable<IABREstimate>;
-      bufferEvents$ : Subject<IBufferEventAddedSegment<unknown> |
-                              IRepresentationChangeEvent>;
-      requestsEvents$ : Subject<IABRMetric | IABRRequest>; }
-{
-  const bufferEvents$ = new Subject<IBufferEventAddedSegment<unknown> |
-                                    IRepresentationChangeEvent>();
-  const requestsEvents$ = new Subject<IABRMetric | IABRRequest>();
-  const abrEvents$ = observableMerge(bufferEvents$, requestsEvents$);
-
-  /** Representations for which a `RepresentationBuffer` can be created. */
-  const playableRepresentations = adaptation.getPlayableRepresentations();
-  if (playableRepresentations.length <= 0) {
-    const noRepErr = new MediaError("NO_PLAYABLE_REPRESENTATION",
-                                    "No Representation in the chosen " +
-                                    "Adaptation can be played");
-    throw noRepErr;
-  }
-
-  const estimator$ : Observable<IABREstimate> =
-    abrManager.get$(adaptation.type, playableRepresentations, clock$, abrEvents$);
-
-  return { estimator$,
-           bufferEvents$,
-           requestsEvents$ };
 }
 
 // Re-export RepresentationBuffer events used by the AdaptationBuffer
